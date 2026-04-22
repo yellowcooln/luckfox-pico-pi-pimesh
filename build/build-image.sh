@@ -37,12 +37,20 @@ need_cmd() {
 
 read_board_var() {
   var_name=$1
-  need_cmd bash
-  bash -c '
-    set -eu
-    . "$1"
-    eval "printf %s \"\${$2:-}\""
-  ' bash "${BOARD_CONFIG_PATH}" "${var_name}"
+  need_cmd awk
+  awk -F= -v key="${var_name}" '
+    $0 ~ "^[[:space:]]*export[[:space:]]+" key "=" {
+      value = substr($0, index($0, "=") + 1)
+      gsub(/^[[:space:]]+/, "", value)
+      gsub(/[[:space:]]+$/, "", value)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      gsub(/^'\''/, "", value)
+      gsub(/'\''$/, "", value)
+      print value
+      exit
+    }
+  ' "${BOARD_CONFIG_PATH}"
 }
 
 check_host_deps() {
