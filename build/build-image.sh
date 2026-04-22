@@ -32,6 +32,8 @@ Environment:
   PYMC_KERNEL_FRAGMENT
                      Kernel config fragment to append.
                      Default: <repo>/build/luckfox_pico_pi_tailscale_kernel.fragment
+  AUTO_ZIP           Set to 1 to always zip the image output into <repo>/build.
+                     Set to 0 to skip zipping without prompting.
   SKIP_BUILD         Set to 1 to stop after check/info validation.
 EOF
 }
@@ -47,6 +49,66 @@ fail() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+prompt_yes_no() {
+  prompt_text=$1
+  default_answer=${2:-n}
+  answer=""
+
+  if [ ! -t 0 ]; then
+    [ "${default_answer}" = "y" ]
+    return
+  fi
+
+  case "${default_answer}" in
+    y) printf '%s [Y/n]: ' "${prompt_text}" ;;
+    *) printf '%s [y/N]: ' "${prompt_text}" ;;
+  esac
+  IFS= read -r answer
+  if [ -z "${answer}" ]; then
+    answer="${default_answer}"
+  fi
+
+  case "${answer}" in
+    y|Y|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+maybe_zip_artifacts() {
+  image_dir="${SDK_DIR}/output/image"
+  archive_name="luckfox-pico-pi-pymc-image-$(date +%Y%m%d-%H%M%S).zip"
+  archive_path="${REPO_ROOT}/build/${archive_name}"
+
+  [ -d "${image_dir}" ] || fail "Missing image output directory: ${image_dir}"
+
+  case "${AUTO_ZIP:-ask}" in
+    1)
+      do_zip=1
+      ;;
+    0)
+      do_zip=0
+      ;;
+    *)
+      if prompt_yes_no "Create a zip archive of output/image in build/?" "n"; then
+        do_zip=1
+      else
+        do_zip=0
+      fi
+      ;;
+  esac
+
+  [ "${do_zip}" -eq 1 ] || return 0
+
+  need_cmd zip
+  stage "Creating image archive"
+  rm -f "${archive_path}"
+  (
+    cd "${SDK_DIR}/output"
+    zip -r "${archive_path}" image >/dev/null
+  )
+  printf 'Archive: %s\n' "${archive_path}"
 }
 
 read_board_var() {
@@ -287,3 +349,4 @@ stage "Building Luckfox image"
 stage "Build complete"
 printf 'Artifacts: %s/output/image\n' "${SDK_DIR}"
 printf 'Expected flash image: %s/output/image/update.img\n' "${SDK_DIR}"
+maybe_zip_artifacts
