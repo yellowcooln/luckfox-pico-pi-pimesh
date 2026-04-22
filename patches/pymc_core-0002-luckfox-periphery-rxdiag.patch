@@ -1,0 +1,289 @@
+diff --git a/src/pymc_core/hardware/sx1262_wrapper.py b/src/pymc_core/hardware/sx1262_wrapper.py
+index 8249ab6..54abeb6 100644
+--- a/src/pymc_core/hardware/sx1262_wrapper.py
++++ b/src/pymc_core/hardware/sx1262_wrapper.py
+@@ -89,7 +89,9 @@ class SX1262Radio(LoRaRadio):
+             dio3_tcxo_voltage: TCXO reference voltage in volts (default: 1.8)
+             use_dio2_rf: Enable DIO2 as RF switch control (default: False)
+             gpio_chip: Default gpiochip for unqualified GPIO pins
+-            use_gpiod_backend: Use alternative backend for GPIO support (default: False)
++            use_gpiod_backend: Legacy compatibility flag. SX1262 now prefers the
++                python-periphery path for SBC GPIO access, including split-chip
++                layouts such as Luckfox.
+             *_gpio_chip: Optional per-pin gpiochip override, e.g. 1 or "/dev/gpiochip1"
+         """
+         # Check if there's already an active instance and clean it up
+@@ -145,9 +147,13 @@ class SX1262Radio(LoRaRadio):
+             self._gpio_manager = existing_gpio_manager
+             logger.info("Using externally configured GPIO manager")
+         else:
+-            backend = "gpiod" if self.use_gpiod_backend else "auto"
++            if self.use_gpiod_backend:
++                logger.warning(
++                    "use_gpiod_backend is deprecated for SX1262Radio; "
++                    "forcing python-periphery GPIO handling instead"
++                )
+             self._gpio_manager = GPIOPinManager(
+-                backend=backend, gpio_chip=self.gpio_chip
++                backend="periphery", gpio_chip=self.gpio_chip
+             )
+             # Share GPIO manager instance with SX126x low-level driver
+             set_gpio_manager(self._gpio_manager)
+@@ -170,6 +176,8 @@ class SX1262Radio(LoRaRadio):
+         # Store CAD results from interrupt handler
+         self._last_cad_detected = False
+         self._last_cad_irq_status = 0
++        self._irq_count = 0
++        self._rx_irq_count = 0
+ 
+         # Custom CAD thresholds (None means use defaults)
+         self._custom_cad_peak = None
+@@ -287,12 +295,20 @@ class SX1262Radio(LoRaRadio):
+                 logger.warning("Interrupt called but radio not initialized")
+                 return
+ 
++            self._irq_count += 1
+             irqStat = self.lora.getIrqStatus()
+ 
+             if irqStat != 0:
+                 self.lora.clearIrqStatus(0xFFFF)
+ 
+             self._last_irq_status = irqStat
++            logger.debug(
++                "[IRQ] #%d status=0x%04X tx_locked=%s rx_event_set=%s",
++                self._irq_count,
++                irqStat,
++                self._tx_lock.locked(),
++                self._rx_done_event.is_set(),
++            )
+             if irqStat & self.lora.IRQ_TX_DONE:
+                 logger.debug("[TX] TX_DONE interrupt (0x{:04X})".format(self.lora.IRQ_TX_DONE))
+                 self._tx_done_event.set()
+@@ -311,6 +327,7 @@ class SX1262Radio(LoRaRadio):
+ 
+             rx_interrupts = self._get_rx_irq_mask()
+             if irqStat & rx_interrupts:
++                self._rx_irq_count += 1
+                 # Define terminal interrupts (packet complete or failed - need action)
+                 terminal_interrupts = (
+                     self.lora.IRQ_RX_DONE
+@@ -369,6 +386,46 @@ class SX1262Radio(LoRaRadio):
+             self._tx_done_event.set()
+             self._rx_done_event.set()
+ 
++    def _log_rx_diagnostics(self, context: str, irq_status: Optional[int] = None) -> None:
++        """Log low-level RX diagnostics to help distinguish GPIO/IRQ/radio failures."""
++        try:
++            busy_state = self.lora.busyCheck() if self.lora else None
++        except Exception as e:
++            busy_state = f"error:{e}"
++
++        try:
++            irq_pin_state = self._gpio_manager.read_pin(self.irq_pin_number)
++        except Exception as e:
++            irq_pin_state = f"error:{e}"
++
++        try:
++            txen_state = self._gpio_manager.read_pin(self.txen_pin) if self.txen_pin != -1 else None
++        except Exception as e:
++            txen_state = f"error:{e}"
++
++        try:
++            rxen_state = self._gpio_manager.read_pin(self.rxen_pin) if self.rxen_pin != -1 else None
++        except Exception as e:
++            rxen_state = f"error:{e}"
++
++        try:
++            device_errors = self.lora.getDeviceErrors() if self.lora else None
++        except Exception as e:
++            device_errors = f"error:{e}"
++
++        logger.debug(
++            "[RXDIAG] %s irq_status=%s busy=%s irq_pin=%s txen=%s rxen=%s device_errors=%s total_irq=%d rx_irq=%d",
++            context,
++            "None" if irq_status is None else f"0x{irq_status:04X}",
++            busy_state,
++            irq_pin_state,
++            txen_state,
++            rxen_state,
++            device_errors,
++            self._irq_count,
++            self._rx_irq_count,
++        )
++
+     def set_rx_callback(self, callback):
+         """Set a callback to be called with each received packet (bytes)."""
+         self.rx_callback = callback
+@@ -408,6 +465,7 @@ class SX1262Radio(LoRaRadio):
+                         )
+                         self._rx_done_event.clear()
+                         logger.debug("[RX] RX_DONE event triggered!")
++                        self._log_rx_diagnostics("rx-event", self._last_irq_status)
+ 
+                         # Mark that we're processing a packet (prevents noise floor sampling)
+                         self._is_receiving_packet = True
+@@ -514,6 +572,7 @@ class SX1262Radio(LoRaRadio):
+                             try:
+                                 self.lora.request(self.lora.RX_CONTINUOUS)
+                                 await asyncio.sleep(self.RADIO_TIMING_DELAY)
++                                self._log_rx_diagnostics("rx-restored", irqStat)
+                                 logger.debug(
+                                     f"[RX] Restored RX continuous mode after IRQ 0x{irqStat:04X}"
+                                 )
+@@ -528,6 +587,8 @@ class SX1262Radio(LoRaRadio):
+                     except asyncio.TimeoutError:
+                         # No RX event within timeout - normal operation
+                         rx_check_count += 1
++                        if rx_check_count % 200 == 0:
++                            self._log_rx_diagnostics("rx-idle-timeout")
+ 
+                         # Sample noise floor during quiet periods
+                         self._sample_noise_floor()
+diff --git a/scripts/luckfox_rx_probe.py b/scripts/luckfox_rx_probe.py
+new file mode 100644
+index 0000000..a417319
+--- /dev/null
++++ b/scripts/luckfox_rx_probe.py
+@@ -0,0 +1,142 @@
++#!/usr/bin/env python3
++"""Direct SX1262 RX probe for Luckfox-style split-chip boards.
++
++Stops relying on pyMC_Repeater logic and polls the radio directly so we can
++see whether the chip itself ever surfaces RX-related IRQ bits.
++"""
++
++from __future__ import annotations
++
++import argparse
++import logging
++import signal
++import sys
++import time
++
++from pymc_core.hardware.sx1262_wrapper import SX1262Radio
++
++
++def parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser(description="Direct RX probe for SX1262 boards")
++    parser.add_argument("--duration", type=float, default=120.0, help="Probe duration in seconds")
++    parser.add_argument("--frequency", type=int, default=910525000)
++    parser.add_argument("--bandwidth", type=int, default=62500)
++    parser.add_argument("--spreading-factor", type=int, default=7)
++    parser.add_argument("--coding-rate", type=int, default=5)
++    parser.add_argument("--tx-power", type=int, default=22)
++    parser.add_argument("--preamble-length", type=int, default=17)
++    return parser.parse_args()
++
++
++def configure_logging() -> None:
++    logging.basicConfig(
++        level=logging.DEBUG,
++        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
++    )
++
++
++def main() -> int:
++    args = parse_args()
++    configure_logging()
++    log = logging.getLogger("luckfox_rx_probe")
++    stop = False
++
++    def handle_stop(signum, _frame):
++        nonlocal stop
++        log.warning("Received signal %s, stopping probe", signum)
++        stop = True
++
++    signal.signal(signal.SIGINT, handle_stop)
++    signal.signal(signal.SIGTERM, handle_stop)
++
++    radio = SX1262Radio(
++        bus_id=0,
++        cs_id=0,
++        cs_pin=17,
++        cs_gpio_chip=4,
++        reset_pin=22,
++        reset_gpio_chip=1,
++        busy_pin=27,
++        busy_gpio_chip=3,
++        irq_pin=23,
++        irq_gpio_chip=1,
++        txen_pin=20,
++        txen_gpio_chip=1,
++        rxen_pin=21,
++        rxen_gpio_chip=1,
++        gpio_chip=1,
++        use_gpiod_backend=False,
++        use_dio2_rf=False,
++        use_dio3_tcxo=True,
++        dio3_tcxo_voltage=1.8,
++        frequency=args.frequency,
++        bandwidth=args.bandwidth,
++        spreading_factor=args.spreading_factor,
++        coding_rate=args.coding_rate,
++        tx_power=args.tx_power,
++        preamble_length=args.preamble_length,
++    )
++
++    try:
++        radio.set_rx_callback(
++            lambda packet: log.warning("[PROBE] callback RX %d bytes: %s", len(packet), packet.hex())
++        )
++        if not radio.begin():
++            log.error("Radio begin() returned False")
++            return 1
++
++        radio.lora.request(radio.lora.RX_CONTINUOUS)
++        time.sleep(radio.RADIO_TIMING_DELAY)
++        log.warning("Probe started for %.1fs", args.duration)
++        radio._log_rx_diagnostics("probe-start")
++
++        deadline = time.time() + args.duration
++        last_irq = None
++        last_diag = 0.0
++
++        rx_mask = radio._get_rx_irq_mask()
++        while not stop and time.time() < deadline:
++            irq = radio.lora.getIrqStatus()
++            if irq != last_irq or irq != 0:
++                log.warning("[PROBE] IRQ status now 0x%04X", irq)
++                last_irq = irq
++
++            if irq & rx_mask:
++                log.warning("[PROBE] RX-related IRQ detected: 0x%04X", irq)
++                radio._log_rx_diagnostics("probe-rx-irq", irq)
++
++                if irq & radio.lora.IRQ_RX_DONE:
++                    payload_len, start_ptr = radio.lora.getRxBufferStatus()
++                    packet_rssi_dbm, snr_db, signal_rssi_dbm = radio.lora.getSignalMetrics()
++                    payload = bytes(radio.lora.readBuffer(start_ptr, payload_len)) if payload_len > 0 else b""
++                    log.warning(
++                        "[PROBE] RX_DONE len=%d rssi=%s snr=%s signal_rssi=%s data=%s",
++                        payload_len,
++                        packet_rssi_dbm,
++                        snr_db,
++                        signal_rssi_dbm,
++                        payload.hex(),
++                    )
++
++                radio.lora.clearIrqStatus(irq)
++                radio.lora.request(radio.lora.RX_CONTINUOUS)
++
++            now = time.time()
++            if now - last_diag >= 2.0:
++                radio._log_rx_diagnostics("probe-loop", irq)
++                last_diag = now
++
++            time.sleep(0.05)
++
++        radio._log_rx_diagnostics("probe-stop")
++        log.warning("Probe finished")
++        return 0
++    finally:
++        try:
++            radio.cleanup()
++        except Exception as exc:
++            log.warning("Cleanup failed: %s", exc)
++
++
++if __name__ == "__main__":
++    sys.exit(main())

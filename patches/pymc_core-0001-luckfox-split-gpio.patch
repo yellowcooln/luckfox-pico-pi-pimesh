@@ -1,0 +1,482 @@
+diff --git a/src/pymc_core/hardware/gpio_manager.py b/src/pymc_core/hardware/gpio_manager.py
+index 75f8455..786a006 100644
+--- a/src/pymc_core/hardware/gpio_manager.py
++++ b/src/pymc_core/hardware/gpio_manager.py
+@@ -9,8 +9,7 @@ import logging
+ import sys
+ import threading
+ import time
+-import os
+-from typing import Callable, Dict, Optional
++from typing import Callable, Dict, Optional, Tuple, Union
+ 
+ try:
+     from periphery import GPIO, EdgeEvent
+@@ -49,6 +48,8 @@ class GPIOImportError(ImportError):
+ 
+ logger = logging.getLogger("GPIOPinManager")
+ 
++PinIdentifier = Union[int, Tuple[Union[str, int], int]]
++
+ 
+ class GPIOPinManager:
+     """Manages GPIO pins abstraction using Linux GPIO character device interface"""
+@@ -164,12 +165,13 @@ class GPIOPinManager:
+                 raise GPIOImportError()
+ 
+         self._gpio_chip = self._resolve_gpio_chip(gpio_chip)
+-        self._pins: Dict[int, GPIO] = {}
+-        self._led_threads: Dict[int, threading.Thread] = {}  # Track active LED threads
+-        self._led_stop_events: Dict[int, threading.Event] = {}  # Stop events for LED threads
+-        self._input_callbacks: Dict[int, Callable] = {}  # Track input pin callbacks
+-        self._edge_threads: Dict[int, threading.Thread] = {}  # Track edge detection threads
+-        self._edge_stop_events: Dict[int, threading.Event] = {}  # Stop events for edge threads
++        self._pins: Dict[PinIdentifier, GPIO] = {}
++        self._led_threads: Dict[PinIdentifier, threading.Thread] = {}
++        self._led_stop_events: Dict[PinIdentifier, threading.Event] = {}
++        self._input_callbacks: Dict[PinIdentifier, Callable] = {}
++        self._edge_threads: Dict[PinIdentifier, threading.Thread] = {}
++        self._edge_stop_events: Dict[PinIdentifier, threading.Event] = {}
++        self._polling_pins: Dict[PinIdentifier, bool] = {}
+ 
+         logger.debug(
+             f"GPIO Manager initialized with chip: {self._gpio_chip} using backend: {self._backend}"
+@@ -187,7 +189,23 @@ class GPIOPinManager:
+                 return "/dev/gpiochip0"
+         return gpio_chip
+ 
+-    def setup_output_pin(self, pin_number: int, initial_value: bool = False) -> bool:
++    def _resolve_pin_spec(self, pin_number: PinIdentifier) -> Tuple[str, int]:
++        """Resolve a pin spec into a gpiochip path and chip-local line number."""
++        if isinstance(pin_number, tuple):
++            gpio_chip, line_number = pin_number
++            if isinstance(gpio_chip, int):
++                gpio_chip = f"/dev/gpiochip{gpio_chip}"
++            elif not str(gpio_chip).startswith("/dev/"):
++                gpio_chip = f"/dev/{gpio_chip}"
++            return self._resolve_gpio_chip(str(gpio_chip)), int(line_number)
++
++        return self._gpio_chip, int(pin_number)
++
++    def _format_pin_spec(self, pin_number: PinIdentifier) -> str:
++        gpio_chip, line_number = self._resolve_pin_spec(pin_number)
++        return f"{gpio_chip}:{line_number}"
++
++    def setup_output_pin(self, pin_number: PinIdentifier, initial_value: bool = False) -> bool:
+         """
+         Setup an output pin with initial value
+ 
+@@ -204,27 +222,31 @@ class GPIOPinManager:
+                 self._pins[pin_number].close()
+                 del self._pins[pin_number]
+ 
+-            # Open GPIO pin as output
+-            gpio = GPIO(self._gpio_chip, pin_number, "out")
++            gpio_chip, line_number = self._resolve_pin_spec(pin_number)
++            gpio = GPIO(gpio_chip, line_number, "out")
+             gpio.write(initial_value)
+             self._pins[pin_number] = gpio
+ 
+-            logger.debug(f"Output pin {pin_number} configured (initial={initial_value})")
++            logger.debug(
++                f"Output pin {self._format_pin_spec(pin_number)} configured "
++                f"(initial={initial_value})"
++            )
+             return True
+         except Exception as e:
++            pin_ref = self._format_pin_spec(pin_number)
+             error_msg = str(e).lower()
+             if "busy" in error_msg or "device or resource busy" in error_msg:
+-                logger.error(f"GPIO pin {pin_number} is already in use by another process: {e}")
+-                print(f"\nFATAL: GPIO Pin {pin_number} is already in use")
++                logger.error(f"GPIO pin {pin_ref} is already in use by another process: {e}")
++                print(f"\nFATAL: GPIO Pin {pin_ref} is already in use")
+                 print("━" * 60)
+                 print("The pin is being used by another process.")
+-                print(f"\nDebug: sudo lsof /dev/gpiochip* | grep {pin_number}")
++                print(f"\nDebug: sudo lsof /dev/gpiochip* | grep {self._resolve_pin_spec(pin_number)[1]}")
+                 print("\nThe system cannot function without GPIO access.")
+                 print("━" * 60)
+                 sys.exit(1)
+             elif "permission denied" in error_msg:
+-                logger.error(f"Permission denied for GPIO pin {pin_number}: {e}")
+-                print(f"\nFATAL: Permission denied for GPIO pin {pin_number}")
++                logger.error(f"Permission denied for GPIO pin {pin_ref}: {e}")
++                print(f"\nFATAL: Permission denied for GPIO pin {pin_ref}")
+                 print("━" * 60)
+                 print("Solutions:")
+                 print("  • Add user to gpio group: sudo usermod -a -G gpio $USER")
+@@ -232,14 +254,8 @@ class GPIOPinManager:
+                 print("━" * 60)
+                 sys.exit(1)
+             else:
+-                logger.error(
+-                    f"Failed to setup output pin {pin_number} on {self._gpio_chip} "
+-                    f"(backend={self._backend}): {e}"
+-                )
+-                print(
+-                    f"\nFATAL: Cannot setup GPIO pin {pin_number} on {self._gpio_chip} "
+-                    f"(backend={self._backend})"
+-                )
++                logger.error(f"Failed to setup output pin {pin_ref}: {e}")
++                print(f"\nFATAL: Cannot setup GPIO pin {pin_ref}")
+                 print("━" * 60)
+                 print(f"Error: {e}")
+                 print("\nThe system cannot function without GPIO access.")
+@@ -248,7 +264,7 @@ class GPIOPinManager:
+ 
+     def setup_input_pin(
+         self,
+-        pin_number: int,
++        pin_number: PinIdentifier,
+         pull_up: bool = False,
+         callback: Optional[Callable] = None,
+     ) -> bool:
+@@ -274,42 +290,42 @@ class GPIOPinManager:
+ 
+             # Open GPIO pin as input with edge detection if callback provided
+             if callback:
+-                # For gpiod backend, libgpiod does not provide the same edge API here
+-                # so we open a plain input and use a polling thread to detect edges.
++                gpio_chip, line_number = self._resolve_pin_spec(pin_number)
+                 if self._backend == "gpiod":
+-                    gpio = GPIO(self._gpio_chip, pin_number, "in", bias=bias)
++                    gpio = GPIO(gpio_chip, line_number, "in", bias=bias)
+                     self._input_callbacks[pin_number] = callback
+-                    # start polling-based detection
+                     self._start_polling_detection(pin_number)
+                 else:
+-                    gpio = GPIO(self._gpio_chip, pin_number, "in", bias=bias, edge="rising")
++                    gpio = GPIO(gpio_chip, line_number, "in", bias=bias, edge="rising")
+                     self._input_callbacks[pin_number] = callback
+                     self._start_edge_detection(pin_number)
+             else:
+                 # No callback, just simple input
+-                gpio = GPIO(self._gpio_chip, pin_number, "in", bias=bias)
++                gpio_chip, line_number = self._resolve_pin_spec(pin_number)
++                gpio = GPIO(gpio_chip, line_number, "in", bias=bias)
+ 
+             self._pins[pin_number] = gpio
+ 
+             logger.debug(
+-                f"Input pin {pin_number} configured "
++                f"Input pin {self._format_pin_spec(pin_number)} configured "
+                 f"(pull_up={pull_up}, callback={callback is not None})"
+             )
+             return True
+         except Exception as e:
++            pin_ref = self._format_pin_spec(pin_number)
+             error_msg = str(e).lower()
+             if "busy" in error_msg or "device or resource busy" in error_msg:
+-                logger.error(f"GPIO pin {pin_number} is already in use by another process: {e}")
+-                print(f"\nFATAL: GPIO Pin {pin_number} is already in use")
++                logger.error(f"GPIO pin {pin_ref} is already in use by another process: {e}")
++                print(f"\nFATAL: GPIO Pin {pin_ref} is already in use")
+                 print("━" * 60)
+                 print("The pin is being used by another process.")
+-                print(f"\nDebug: sudo lsof /dev/gpiochip* | grep {pin_number}")
++                print(f"\nDebug: sudo lsof /dev/gpiochip* | grep {self._resolve_pin_spec(pin_number)[1]}")
+                 print("\nThe system cannot function without GPIO access.")
+                 print("━" * 60)
+                 sys.exit(1)
+             elif "permission denied" in error_msg:
+-                logger.error(f"Permission denied for GPIO pin {pin_number}: {e}")
+-                print(f"\nFATAL: Permission denied for GPIO pin {pin_number}")
++                logger.error(f"Permission denied for GPIO pin {pin_ref}: {e}")
++                print(f"\nFATAL: Permission denied for GPIO pin {pin_ref}")
+                 print("━" * 60)
+                 print("Solutions:")
+                 print("  • Add user to gpio group: sudo usermod -a -G gpio $USER")
+@@ -317,14 +333,8 @@ class GPIOPinManager:
+                 print("━" * 60)
+                 sys.exit(1)
+             else:
+-                logger.error(
+-                    f"Failed to setup input pin {pin_number} on {self._gpio_chip} "
+-                    f"(backend={self._backend}): {e}"
+-                )
+-                print(
+-                    f"\nFATAL: Cannot setup GPIO pin {pin_number} on {self._gpio_chip} "
+-                    f"(backend={self._backend})"
+-                )
++                logger.error(f"Failed to setup input pin {pin_ref}: {e}")
++                print(f"\nFATAL: Cannot setup GPIO pin {pin_ref}")
+                 print("━" * 60)
+                 print(f"Error: {e}")
+                 print("\nThe system cannot function without GPIO access.")
+@@ -333,7 +343,7 @@ class GPIOPinManager:
+ 
+     def setup_interrupt_pin(
+         self,
+-        pin_number: int,
++        pin_number: PinIdentifier,
+         pull_up: bool = False,
+         callback: Optional[Callable] = None,
+     ) -> Optional[GPIO]:
+@@ -360,37 +370,53 @@ class GPIOPinManager:
+             # Determine bias setting
+             bias = "pull_up" if pull_up else "default"
+ 
+-            # Open GPIO pin as input with edge detection on rising edge or polling for gpiod
++            gpio_chip, line_number = self._resolve_pin_spec(pin_number)
+             if self._backend == "gpiod":
+-                gpio = GPIO(self._gpio_chip, pin_number, "in", bias=bias)
+-                self._pins[pin_number] = gpio
+-                if callback:
+-                    self._input_callbacks[pin_number] = callback
+-                    self._start_polling_detection(pin_number)
++                gpio = GPIO(gpio_chip, line_number, "in", bias=bias)
++                self._polling_pins[pin_number] = True
+             else:
+-                gpio = GPIO(self._gpio_chip, pin_number, "in", bias=bias, edge="rising")
+-                self._pins[pin_number] = gpio
+-                if callback:
+-                    self._input_callbacks[pin_number] = callback
++                try:
++                    gpio = GPIO(gpio_chip, line_number, "in", bias=bias, edge="rising")
++                    self._polling_pins[pin_number] = False
++                except Exception as e:
++                    error_msg = str(e).lower()
++                    if "invalid argument" not in error_msg:
++                        raise
++
++                    logger.warning(
++                        "Falling back to software-polled interrupt handling for pin %s: %s",
++                        self._format_pin_spec(pin_number),
++                        e,
++                    )
++                    gpio = GPIO(gpio_chip, line_number, "in", bias=bias)
++                    self._polling_pins[pin_number] = True
++
++            self._pins[pin_number] = gpio
++
++            if callback:
++                self._input_callbacks[pin_number] = callback
++                if self._polling_pins.get(pin_number):
++                    self._start_polling_detection(pin_number)
++                else:
+                     self._start_edge_detection(pin_number)
+ 
+             logger.debug(
+-                f"Interrupt pin {pin_number} configured "
++                f"Interrupt pin {self._format_pin_spec(pin_number)} configured "
+                 f"(pull_up={pull_up}, callback={callback is not None})"
+             )
+             return gpio
+         except Exception as e:
+             error_msg = str(e).lower()
+             if "busy" in error_msg or "device or resource busy" in error_msg:
+-                print(f"\nFATAL: GPIO Pin {pin_number} is already in use")
++                print(f"\nFATAL: GPIO Pin {self._format_pin_spec(pin_number)} is already in use")
+                 print("━" * 60)
+                 print("The pin is being used by another process.")
+-                print(f"\nDebug: sudo lsof /dev/gpiochip* | grep {pin_number}")
++                print(f"\nDebug: sudo lsof /dev/gpiochip* | grep {self._resolve_pin_spec(pin_number)[1]}")
+                 print("\nThe system cannot function without GPIO access.")
+                 print("━" * 60)
+                 sys.exit(1)
+             elif "permission denied" in error_msg:
+-                print(f"\nFATAL: Permission denied for GPIO pin {pin_number}")
++                print(f"\nFATAL: Permission denied for GPIO pin {self._format_pin_spec(pin_number)}")
+                 print("━" * 60)
+                 print("Solutions:")
+                 print("  • Add user to gpio group: sudo usermod -a -G gpio $USER")
+@@ -398,14 +424,8 @@ class GPIOPinManager:
+                 print("━" * 60)
+                 sys.exit(1)
+             else:
+-                logger.error(
+-                    f"Failed to setup interrupt pin {pin_number} on {self._gpio_chip} "
+-                    f"(backend={self._backend}): {e}"
+-                )
+-                print(
+-                    f"\nFATAL: Cannot setup GPIO pin {pin_number} on {self._gpio_chip} "
+-                    f"(backend={self._backend})"
+-                )
++                logger.error(f"Failed to setup interrupt pin {self._format_pin_spec(pin_number)}: {e}")
++                print(f"\nFATAL: Cannot setup GPIO pin {self._format_pin_spec(pin_number)}")
+                 print("━" * 60)
+                 print(f"Error: {e}")
+                 print("\nThe system cannot function without GPIO access.")
+@@ -488,6 +508,10 @@ class GPIOPinManager:
+             if not gpio:
+                 return
+ 
++            if self._polling_pins.get(pin_number):
++                self._monitor_polled_interrupts(pin_number, gpio, stop_event)
++                return
++
+             while not stop_event.is_set() and pin_number in self._pins:
+                 try:
+                     # Wait for edge event (kernel blocks until interrupt)
+@@ -508,6 +532,28 @@ class GPIOPinManager:
+         except Exception as e:
+             logger.error(f"Edge detection error for pin {pin_number}: {e}")
+ 
++    def _monitor_polled_interrupts(
++        self, pin_number: int, gpio: GPIO, stop_event: threading.Event
++    ) -> None:
++        """Software polling fallback for kernels that reject edge handles."""
++        try:
++            last_state = gpio.read()
++        except Exception:
++            last_state = False
++
++        while not stop_event.is_set() and pin_number in self._pins:
++            try:
++                current_state = gpio.read()
++                if current_state and not last_state:
++                    callback = self._input_callbacks.get(pin_number)
++                    if callback:
++                        callback()
++                last_state = current_state
++                time.sleep(0.01)
++            except Exception:
++                if not stop_event.is_set():
++                    time.sleep(0.1)
++
+     def set_pin_high(self, pin_number: int) -> bool:
+         """Set output pin to HIGH"""
+         if pin_number in self._pins:
+@@ -573,6 +619,8 @@ class GPIOPinManager:
+         # Remove callback
+         if pin_number in self._input_callbacks:
+             del self._input_callbacks[pin_number]
++        if pin_number in self._polling_pins:
++            del self._polling_pins[pin_number]
+ 
+         # Close GPIO pin
+         if pin_number in self._pins:
+diff --git a/src/pymc_core/hardware/lora/LoRaRF/SX126x.py b/src/pymc_core/hardware/lora/LoRaRF/SX126x.py
+index 21db50b..726a9f2 100644
+--- a/src/pymc_core/hardware/lora/LoRaRF/SX126x.py
++++ b/src/pymc_core/hardware/lora/LoRaRF/SX126x.py
+@@ -471,7 +471,7 @@ class SX126x(BaseLoRa):
+         spi.lsbfirst = False
+         spi.mode = 0
+ 
+-    def setManualCsPin(self, cs_pin: int):
++    def setManualCsPin(self, cs_pin):
+         """Override CS pin for special boards like Waveshare HAT"""
+         self._cs_define = cs_pin
+ 
+diff --git a/src/pymc_core/hardware/sx1262_wrapper.py b/src/pymc_core/hardware/sx1262_wrapper.py
+index 20676b3..8249ab6 100644
+--- a/src/pymc_core/hardware/sx1262_wrapper.py
++++ b/src/pymc_core/hardware/sx1262_wrapper.py
+@@ -11,7 +11,7 @@ import time
+ from typing import Optional, Union
+ 
+ from .base import LoRaRadio
+-from .gpio_manager import GPIOPinManager
++from .gpio_manager import GPIOPinManager, PinIdentifier
+ from .lora.LoRaRF.SX126x import SX126x, set_gpio_manager
+ 
+ logger = logging.getLogger("SX1262_wrapper")
+@@ -31,8 +31,6 @@ class SX1262Radio(LoRaRadio):
+         bus_id: int = 0,
+         cs_id: int = 0,
+         cs_pin: int = -1,
+-        gpio_chip: int = 0,
+-        use_gpiod_backend: bool = False,
+         reset_pin: int = 18,
+         busy_pin: int = 20,
+         irq_pin: int = 16,
+@@ -52,6 +50,17 @@ class SX1262Radio(LoRaRadio):
+         use_dio3_tcxo: bool = False,
+         dio3_tcxo_voltage: float = 1.8,
+         use_dio2_rf: bool = False,
++        gpio_chip: Union[str, int] = "/dev/gpiochip0",
++        use_gpiod_backend: bool = False,
++        cs_gpio_chip: Optional[Union[str, int]] = None,
++        reset_gpio_chip: Optional[Union[str, int]] = None,
++        busy_gpio_chip: Optional[Union[str, int]] = None,
++        irq_gpio_chip: Optional[Union[str, int]] = None,
++        txen_gpio_chip: Optional[Union[str, int]] = None,
++        rxen_gpio_chip: Optional[Union[str, int]] = None,
++        txled_gpio_chip: Optional[Union[str, int]] = None,
++        rxled_gpio_chip: Optional[Union[str, int]] = None,
++        en_gpio_chip: Optional[Union[str, int]] = None,
+     ):
+         """
+         Initialize SX1262 radio
+@@ -60,8 +69,6 @@ class SX1262Radio(LoRaRadio):
+             bus_id: SPI bus ID (default: 0)
+             cs_id: SPI chip select ID (default: 0)
+             cs_pin: Manual CS GPIO pin (-1 = use hardware CS, e.g. 21 for Waveshare HAT)
+-            gpio_chip: GPIO chip select ID (default: 0)
+-            use_gpiod_backend: Use alternative backend for GPIO support (default: False)
+             reset_pin: GPIO pin for reset (default: 18)
+             busy_pin: GPIO pin for busy signal (default: 20)
+             irq_pin: GPIO pin for interrupt (default: 16)
+@@ -81,6 +88,9 @@ class SX1262Radio(LoRaRadio):
+             use_dio3_tcxo: Enable DIO3 TCXO control (default: False)
+             dio3_tcxo_voltage: TCXO reference voltage in volts (default: 1.8)
+             use_dio2_rf: Enable DIO2 as RF switch control (default: False)
++            gpio_chip: Default gpiochip for unqualified GPIO pins
++            use_gpiod_backend: Use alternative backend for GPIO support (default: False)
++            *_gpio_chip: Optional per-pin gpiochip override, e.g. 1 or "/dev/gpiochip1"
+         """
+         # Check if there's already an active instance and clean it up
+         if SX1262Radio._active_instance is not None:
+@@ -93,17 +103,17 @@ class SX1262Radio(LoRaRadio):
+ 
+         self.bus_id = bus_id
+         self.cs_id = cs_id
+-        self.cs_pin = cs_pin
+-        self.gpio_chip = gpio_chip
+         self.use_gpiod_backend = use_gpiod_backend
+-        self.reset_pin = reset_pin
+-        self.busy_pin = busy_pin
+-        self.irq_pin_number = irq_pin  # Store pin number
+-        self.txen_pin = txen_pin
+-        self.rxen_pin = rxen_pin
+-        self.txled_pin = txled_pin
+-        self.rxled_pin = rxled_pin
+-        self.en_pin = en_pin
++        self.gpio_chip = self._normalize_gpio_chip(gpio_chip)
++        self.cs_pin = self._build_pin_spec(cs_pin, cs_gpio_chip)
++        self.reset_pin = self._build_pin_spec(reset_pin, reset_gpio_chip)
++        self.busy_pin = self._build_pin_spec(busy_pin, busy_gpio_chip)
++        self.irq_pin_number = self._build_pin_spec(irq_pin, irq_gpio_chip)
++        self.txen_pin = self._build_pin_spec(txen_pin, txen_gpio_chip)
++        self.rxen_pin = self._build_pin_spec(rxen_pin, rxen_gpio_chip)
++        self.txled_pin = self._build_pin_spec(txled_pin, txled_gpio_chip)
++        self.rxled_pin = self._build_pin_spec(rxled_pin, rxled_gpio_chip)
++        self.en_pin = self._build_pin_spec(en_pin, en_gpio_chip)
+ 
+         # Radio configuration
+         self.frequency = frequency
+@@ -137,7 +147,7 @@ class SX1262Radio(LoRaRadio):
+         else:
+             backend = "gpiod" if self.use_gpiod_backend else "auto"
+             self._gpio_manager = GPIOPinManager(
+-                backend=backend, gpio_chip=f"/dev/gpiochip{self.gpio_chip}"
++                backend=backend, gpio_chip=self.gpio_chip
+             )
+             # Share GPIO manager instance with SX126x low-level driver
+             set_gpio_manager(self._gpio_manager)
+@@ -188,6 +198,23 @@ class SX1262Radio(LoRaRadio):
+         # RX callback for received packets
+         self.rx_callback = None
+ 
++    @staticmethod
++    def _normalize_gpio_chip(gpio_chip: Union[str, int]) -> str:
++        if isinstance(gpio_chip, int):
++            return f"/dev/gpiochip{gpio_chip}"
++        if not str(gpio_chip).startswith("/dev/"):
++            return f"/dev/{gpio_chip}"
++        return str(gpio_chip)
++
++    def _build_pin_spec(
++        self, pin: int, gpio_chip_override: Optional[Union[str, int]]
++    ) -> PinIdentifier:
++        if pin == -1:
++            return -1
++        if gpio_chip_override is None:
++            return pin
++        return (self._normalize_gpio_chip(gpio_chip_override), pin)
++
+     def _get_rx_irq_mask(self) -> int:
+         """Get the standard RX interrupt mask"""
+         return (
