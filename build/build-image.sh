@@ -69,6 +69,7 @@ sync_sdk_repo() {
   dest_dir=$3
 
   need_cmd git
+  git config --global --add safe.directory "${dest_dir}" >/dev/null 2>&1 || true
 
   if [ -d "${dest_dir}/.git" ]; then
     stage "Refreshing Luckfox SDK"
