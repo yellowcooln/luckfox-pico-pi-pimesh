@@ -20,7 +20,6 @@ mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
 
 mkdir -p "${TARGET_DIR}/var/empty"
-chown 0:0 "${TARGET_DIR}/var/empty"
 chmod 0755 "${TARGET_DIR}/var/empty"
 
 # Force the final image to ship with a known SSH login even if vendor overlays
