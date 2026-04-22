@@ -44,12 +44,14 @@ SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
 SDK_BUILDROOT_DEFCONFIG="${SDK_DIR}/config/buildroot_defconfig"
 SDK_BUILDSH="${SDK_DIR}/build.sh"
 TOOLCHAIN_ENV="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/env_install_toolchain.sh"
+TOOLCHAIN_BIN="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin"
 
 [ -d "${SDK_DIR}" ] || fail "Luckfox SDK directory not found: ${SDK_DIR}"
 [ -f "${SDK_BUILDSH}" ] || fail "Missing Luckfox SDK build script: ${SDK_BUILDSH}"
 [ -f "${BOARD_CONFIG_PATH}" ] || fail "Missing board config: ${BOARD_CONFIG_PATH}"
 [ -f "${FRAGMENT}" ] || fail "Missing config fragment: ${FRAGMENT}"
 [ -f "${TOOLCHAIN_ENV}" ] || fail "Missing Luckfox toolchain env script: ${TOOLCHAIN_ENV}"
+[ -d "${TOOLCHAIN_BIN}" ] || fail "Missing Luckfox toolchain bin directory: ${TOOLCHAIN_BIN}"
 
 BASE_DEFCONFIG=$(
   sed -n 's/^export RK_BUILDROOT_DEFCONFIG=\(.*\)$/\1/p' "${BOARD_CONFIG_PATH}" |
@@ -78,7 +80,7 @@ stage "Validating SDK environment"
 (
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
-  . "${TOOLCHAIN_ENV}"
+  export PATH="${TOOLCHAIN_BIN}:${PATH}"
   ./build.sh check
   ./build.sh info
 )
@@ -93,7 +95,7 @@ stage "Building Luckfox image"
 (
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
-  . "${TOOLCHAIN_ENV}"
+  export PATH="${TOOLCHAIN_BIN}:${PATH}"
   ./build.sh
   ./build.sh firmware
 )
