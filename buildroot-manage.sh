@@ -2,7 +2,6 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PATCH_DIR="${SCRIPT_DIR}/patches"
 SRC_DIR="${SCRIPT_DIR}/.buildroot-src"
 RUNTIME_DIR="${SCRIPT_DIR}/.buildroot-runtime"
 CONFIG_DIR="${RUNTIME_DIR}/config"
@@ -17,32 +16,29 @@ INIT_SCRIPT_PATH="/etc/init.d/S95pymc-repeater"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 PYMC_CORE_REPO="${PYMC_CORE_REPO:-https://github.com/rightup/pyMC_core.git}"
-PYMC_CORE_REF="${PYMC_CORE_REF:-8eb0c95}"
+PYMC_CORE_REF="${PYMC_CORE_REF:-dev}"
 PYMC_REPEATER_REPO="${PYMC_REPEATER_REPO:-https://github.com/rightup/pyMC_Repeater.git}"
-PYMC_REPEATER_REF="${PYMC_REPEATER_REF:-cb2ccc4}"
-PYMC_HARDWARE_PROFILE="${PYMC_HARDWARE_PROFILE:-}"
+PYMC_REPEATER_REF="${PYMC_REPEATER_REF:-dev}"
 
 PYMC_CORE_SRC="${SRC_DIR}/pyMC_core"
 PYMC_REPEATER_SRC="${SRC_DIR}/pyMC_Repeater"
 CONFIG_PATH="${CONFIG_DIR}/config.yaml"
 IDENTITY_PATH="${CONFIG_DIR}/identity.key"
-RADIO_SETTINGS_PATH="${DATA_DIR}/radio-settings.json"
 
 usage() {
   cat <<'EOF'
 Usage: sh buildroot-manage.sh <command>
 
 Commands:
-  install                Install Python deps, sync patched sources, and write config
+  install                Install Python deps, sync upstream sources, and write config
   configure              Rebuild config.yaml without forcing radio hardware
-  doctor                 Check Buildroot prerequisites and optional radio device nodes
+  doctor                 Check Buildroot prerequisites and common radio device nodes
   run                    Run pyMC_Repeater in the foreground
   start                  Start pyMC_Repeater in the background; use "start logs" to tail logs
   stop                   Stop the background process
   restart                Restart the background process
   status                 Show runtime status
   logs                   Tail the runtime log
-  probe                  Run the direct SX1262 RX probe for the current split-chip test layout
   install-init-script    Install BusyBox init script
   uninstall-init-script  Remove BusyBox init script
 EOF
@@ -160,31 +156,10 @@ clone_or_refresh_repo() {
   git -C "${dest_dir}" checkout -f "${repo_ref}"
 }
 
-apply_patch_file() {
-  repo_dir="$1"
-  patch_file="$2"
-  if git -C "${repo_dir}" apply --check "${patch_file}" >/dev/null 2>&1; then
-    git -C "${repo_dir}" apply "${patch_file}"
-    info "Applied $(basename "${patch_file}")"
-    return
-  fi
-
-  if git -C "${repo_dir}" apply --reverse --check "${patch_file}" >/dev/null 2>&1; then
-    info "Already applied $(basename "${patch_file}")"
-    return
-  fi
-
-  fail "Could not apply patch: ${patch_file}"
-}
-
 sync_sources() {
   ensure_directories
   clone_or_refresh_repo "${PYMC_CORE_REPO}" "${PYMC_CORE_REF}" "${PYMC_CORE_SRC}"
   clone_or_refresh_repo "${PYMC_REPEATER_REPO}" "${PYMC_REPEATER_REF}" "${PYMC_REPEATER_SRC}"
-  stage "Applying pyMC_core test patches"
-  apply_patch_file "${PYMC_CORE_SRC}" "${PATCH_DIR}/pymc_core-0001-luckfox-split-gpio.patch"
-  apply_patch_file "${PYMC_CORE_SRC}" "${PATCH_DIR}/pymc_core-0002-luckfox-periphery-rxdiag.patch"
-  cp "${PYMC_REPEATER_SRC}/radio-settings.json" "${RADIO_SETTINGS_PATH}"
 }
 
 python_bootstrap() {
@@ -268,24 +243,6 @@ prompt_with_default() {
   printf '%s' "${result}"
 }
 
-prompt_optional() {
-  prompt_text="$1"
-  default_value="$2"
-  result=""
-  if [ -t 0 ]; then
-    if [ -n "${default_value}" ]; then
-      printf '%s [%s]: ' "$prompt_text" "$default_value"
-    else
-      printf '%s: ' "$prompt_text"
-    fi
-    IFS= read -r result
-  fi
-  if [ -z "${result}" ]; then
-    result="${default_value}"
-  fi
-  printf '%s' "${result}"
-}
-
 build_pythonpath() {
   py_path="${PYMC_REPEATER_SRC}:${PYMC_CORE_SRC}/src"
   if [ -d "${SITE_PACKAGES_DIR}" ]; then
@@ -323,16 +280,9 @@ EOF
 write_config() {
   stage "Writing config.yaml"
 
-  hw_profile="${PYMC_HARDWARE_PROFILE}"
   node_name="${NODE_NAME:-}"
   admin_password="${ADMIN_PASSWORD:-}"
   guest_password="${GUEST_PASSWORD:-}"
-  frequency="${RADIO_FREQUENCY:-}"
-  bandwidth="${RADIO_BANDWIDTH:-}"
-  spreading_factor="${RADIO_SPREADING_FACTOR:-}"
-  coding_rate="${RADIO_CODING_RATE:-}"
-  tx_power="${RADIO_TX_POWER:-}"
-  preamble_length="${RADIO_PREAMBLE_LENGTH:-}"
 
   if [ -z "${node_name}" ]; then
     node_name=$(prompt_with_default "Node name" "pymc-repeater")
@@ -343,41 +293,14 @@ write_config() {
   if [ -z "${guest_password}" ]; then
     guest_password=$(prompt_with_default "Guest password" "guest123")
   fi
-  if [ -z "${frequency}" ]; then
-    frequency=$(prompt_with_default "Radio frequency (Hz)" "910525000")
-  fi
-  if [ -z "${bandwidth}" ]; then
-    bandwidth=$(prompt_with_default "Bandwidth (Hz)" "62500")
-  fi
-  if [ -z "${spreading_factor}" ]; then
-    spreading_factor=$(prompt_with_default "Spreading factor" "7")
-  fi
-  if [ -z "${coding_rate}" ]; then
-    coding_rate=$(prompt_with_default "Coding rate" "5")
-  fi
-  if [ -z "${tx_power}" ]; then
-    tx_power=$(prompt_with_default "TX power (dBm)" "22")
-  fi
-  if [ -z "${preamble_length}" ]; then
-    preamble_length=$(prompt_with_default "Preamble length" "17")
-  fi
   CONFIG_PATH="${CONFIG_PATH}" \
   IDENTITY_PATH="${IDENTITY_PATH}" \
   DATA_DIR="${DATA_DIR}" \
-  RADIO_SETTINGS_PATH="${RADIO_SETTINGS_PATH}" \
   PYMC_REPEATER_SRC="${PYMC_REPEATER_SRC}" \
   NODE_NAME="${node_name}" \
   ADMIN_PASSWORD="${admin_password}" \
   GUEST_PASSWORD="${guest_password}" \
-  RADIO_FREQUENCY="${frequency}" \
-  RADIO_BANDWIDTH="${bandwidth}" \
-  RADIO_SPREADING_FACTOR="${spreading_factor}" \
-  RADIO_CODING_RATE="${coding_rate}" \
-  RADIO_TX_POWER="${tx_power}" \
-  RADIO_PREAMBLE_LENGTH="${preamble_length}" \
-  PYMC_HARDWARE_PROFILE="${hw_profile}" \
   "$(python_bootstrap)" - <<'PY'
-import json
 import os
 import secrets
 from pathlib import Path
@@ -387,9 +310,7 @@ import yaml
 config_path = Path(os.environ["CONFIG_PATH"])
 identity_path = Path(os.environ["IDENTITY_PATH"])
 data_dir = Path(os.environ["DATA_DIR"])
-radio_settings_path = Path(os.environ["RADIO_SETTINGS_PATH"])
 example_path = Path(os.environ["PYMC_REPEATER_SRC"]) / "config.yaml.example"
-hardware_profile = os.environ["PYMC_HARDWARE_PROFILE"].strip()
 
 with example_path.open("r", encoding="utf-8") as handle:
     config = yaml.safe_load(handle)
@@ -404,52 +325,6 @@ config["repeater"]["security"]["jwt_secret"] = secrets.token_hex(32)
 
 config.setdefault("storage", {})
 config["storage"]["storage_dir"] = str(data_dir)
-
-config["radio_type"] = hardware.get("radio_type", "sx1262")
-config.setdefault("radio", {})
-config["radio"]["frequency"] = int(os.environ["RADIO_FREQUENCY"])
-config["radio"]["bandwidth"] = int(os.environ["RADIO_BANDWIDTH"])
-config["radio"]["spreading_factor"] = int(os.environ["RADIO_SPREADING_FACTOR"])
-config["radio"]["coding_rate"] = int(os.environ["RADIO_CODING_RATE"])
-config["radio"]["tx_power"] = int(os.environ["RADIO_TX_POWER"])
-config["radio"]["preamble_length"] = int(os.environ["RADIO_PREAMBLE_LENGTH"])
-
-if hardware_profile:
-    with radio_settings_path.open("r", encoding="utf-8") as handle:
-        hardware_data = json.load(handle)
-
-    hardware = hardware_data.get("hardware", {}).get(hardware_profile)
-    if not hardware:
-        raise SystemExit(f"Unknown hardware profile: {hardware_profile}")
-
-    config["radio_type"] = hardware.get("radio_type", "sx1262")
-    config.setdefault("sx1262", {})
-    for key in (
-        "bus_id",
-        "cs_id",
-        "cs_pin",
-        "gpio_chip",
-        "use_gpiod_backend",
-        "cs_gpio_chip",
-        "reset_pin",
-        "reset_gpio_chip",
-        "busy_pin",
-        "busy_gpio_chip",
-        "irq_pin",
-        "irq_gpio_chip",
-        "txen_pin",
-        "txen_gpio_chip",
-        "rxen_pin",
-        "rxen_gpio_chip",
-        "txled_pin",
-        "rxled_pin",
-        "use_dio3_tcxo",
-        "dio3_tcxo_voltage",
-        "use_dio2_rf",
-        "is_waveshare",
-    ):
-        if key in hardware:
-            config["sx1262"][key] = hardware[key]
 
 config_path.parent.mkdir(parents=True, exist_ok=True)
 with config_path.open("w", encoding="utf-8") as handle:
@@ -490,14 +365,17 @@ PY
     warn "Python.h: missing"
   fi
 
-  stage "Checking optional radio device nodes"
-  for path in /dev/spidev0.0 /dev/gpiochip1 /dev/gpiochip3 /dev/gpiochip4; do
+  stage "Checking common radio device nodes"
+  found_any=0
+  for path in /dev/spidev* /dev/gpiochip*; do
     if [ -e "${path}" ]; then
       info "present: ${path}"
-    else
-      warn "missing: ${path}"
+      found_any=1
     fi
   done
+  if [ "${found_any}" -eq 0 ]; then
+    warn "No /dev/spidev* or /dev/gpiochip* nodes detected"
+  fi
 
   stage "Checking network"
   if command -v ip >/dev/null 2>&1; then
@@ -564,26 +442,12 @@ show_status() {
   fi
   info "config: ${CONFIG_PATH}"
   info "log: ${LOG_FILE}"
-  info "hardware profile: ${PYMC_HARDWARE_PROFILE:-<unset, repeater setup will choose>}"
 }
 
 tail_logs() {
   mkdir -p "${LOG_DIR}"
   touch "${LOG_FILE}"
   tail -f "${LOG_FILE}"
-}
-
-run_probe() {
-  stage "Running direct Luckfox RX probe"
-  ensure_base_tools
-  [ -f "${PYMC_CORE_SRC}/scripts/luckfox_rx_probe.py" ] || fail "Probe script missing. Run install first."
-  export PYTHONPATH="$(build_pythonpath)${PYTHONPATH:+:${PYTHONPATH}}"
-  if [ -x "${VENV_DIR}/bin/python" ]; then
-    cd "${PYMC_CORE_SRC}"
-    exec "${VENV_DIR}/bin/python" scripts/luckfox_rx_probe.py "$@"
-  fi
-  cd "${PYMC_CORE_SRC}"
-  exec "${PYTHON_BIN}" scripts/luckfox_rx_probe.py "$@"
 }
 
 install_init_script() {
@@ -669,10 +533,6 @@ case "${cmd}" in
     ;;
   logs)
     tail_logs
-    ;;
-  probe)
-    shift
-    run_probe "$@"
     ;;
   install-init-script)
     install_init_script
