@@ -35,6 +35,16 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
+read_board_var() {
+  var_name=$1
+  need_cmd bash
+  bash -c '
+    set -eu
+    . "$1"
+    eval "printf %s \"\${$2:-}\""
+  ' bash "${BOARD_CONFIG_PATH}" "${var_name}"
+}
+
 check_host_deps() {
   stage "Checking host dependencies"
 
@@ -64,14 +74,8 @@ check_host_deps() {
 }
 
 link_sdk_config_files() {
-  kernel_dts=$(
-    sed -n 's/^export RK_KERNEL_DTS=\(.*\)$/\1/p' "${BOARD_CONFIG_PATH}" |
-      tail -n 1
-  )
-  kernel_defconfig=$(
-    sed -n 's/^export RK_KERNEL_DEFCONFIG=\(.*\)$/\1/p' "${BOARD_CONFIG_PATH}" |
-      tail -n 1
-  )
+  kernel_dts=$(read_board_var RK_KERNEL_DTS)
+  kernel_defconfig=$(read_board_var RK_KERNEL_DEFCONFIG)
 
   [ -n "${kernel_dts}" ] || fail "Could not read RK_KERNEL_DTS from ${BOARD_CONFIG_PATH}"
   [ -n "${kernel_defconfig}" ] || fail "Could not read RK_KERNEL_DEFCONFIG from ${BOARD_CONFIG_PATH}"
@@ -164,10 +168,7 @@ sync_sdk_repo "${SDK_REPO}" "${SDK_REF}" "${SDK_DIR}"
 [ -f "${TOOLCHAIN_ENV}" ] || fail "Missing Luckfox toolchain env script: ${TOOLCHAIN_ENV}"
 [ -d "${TOOLCHAIN_BIN}" ] || fail "Missing Luckfox toolchain bin directory: ${TOOLCHAIN_BIN}"
 
-BASE_DEFCONFIG=$(
-  sed -n 's/^export RK_BUILDROOT_DEFCONFIG=\(.*\)$/\1/p' "${BOARD_CONFIG_PATH}" |
-    tail -n 1
-)
+BASE_DEFCONFIG=$(read_board_var RK_BUILDROOT_DEFCONFIG)
 [ -n "${BASE_DEFCONFIG}" ] || fail "Could not read RK_BUILDROOT_DEFCONFIG from ${BOARD_CONFIG_PATH}"
 
 BASE_DEFCONFIG_PATH="${SDK_DIR}/sysdrv/tools/board/buildroot/${BASE_DEFCONFIG}"
