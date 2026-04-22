@@ -1,6 +1,5 @@
 # Merge these settings into the vendor Luckfox Buildroot configuration.
 # This is a package/config fragment, not a complete standalone board defconfig.
-# Canonical copy lives at build/luckfox_pico_pi_pymc.fragment.
 
 BR2_TARGET_ENABLE_ROOT_LOGIN=y
 BR2_TARGET_GENERIC_ROOT_PASSWD="luckfox"

@@ -6,6 +6,8 @@ It does not use `systemd`.
 
 It installs a repo-local runtime, runs `pyMC_Repeater` from checked-out source, and manages the process with a BusyBox-friendly shell script.
 
+For building a flashable Luckfox image with this repo layered onto the vendor Buildroot tree, use the files in [build](/home/yellowcooln/luckfox-pico-pi-pimesh/build).
+
 Radio-specific configuration is intentionally deferred to the normal `pyMC_Repeater` setup flow.
 
 ## What It Assumes

@@ -39,10 +39,16 @@ make BR2_EXTERNAL=../luckfox-pico-pi-pimesh <vendor_board_defconfig>
 Then merge the package fragment values from:
 
 ```text
-../luckfox-pico-pi-pimesh/configs/luckfox_pico_pi_pimesh_packages.config
+../luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment
 ```
 
-The simplest path is:
+The repo also includes a helper script that runs that flow for you:
+
+```sh
+../luckfox-pico-pi-pimesh/build/build-image.sh "$(pwd)" <vendor_board_defconfig>
+```
+
+The simplest manual path is:
 
 1. `make menuconfig`
 2. set the options listed in the fragment
