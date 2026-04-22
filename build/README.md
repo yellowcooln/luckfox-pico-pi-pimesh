@@ -56,9 +56,10 @@ What the script does:
 4. installs [luckfox_pico_pi_tailscale_kernel.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_tailscale_kernel.fragment:1) into the SDK and appends it to the Pico Pi kernel fragment list
 5. exports this repo as `BR2_EXTERNAL`
 6. runs direct host prerequisite checks
-7. runs `./build.sh info`
-8. runs `./build.sh`
-9. runs `./build.sh firmware`
+7. links the SDK kernel and DTS config files directly
+8. runs lightweight SDK sanity checks from the wrapper
+9. runs `./build.sh`
+10. runs `./build.sh firmware`
 
 ## Tailscale Baseline
 
@@ -121,8 +122,6 @@ cat sysdrv/tools/board/buildroot/luckfox_pico_w_defconfig \
   > config/buildroot_defconfig
 export BR2_EXTERNAL=/path/to/luckfox-pico-pi-pimesh
 export PATH="$PWD/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin:$PATH"
-./build.sh check
-./build.sh info
 ./build.sh
 ./build.sh firmware
 ```

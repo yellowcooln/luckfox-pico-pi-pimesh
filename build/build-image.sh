@@ -63,6 +63,46 @@ check_host_deps() {
   printf 'Check [OK]: make -v\n'
 }
 
+link_sdk_config_files() {
+  kernel_dts=$(
+    sed -n 's/^export RK_KERNEL_DTS=\(.*\)$/\1/p' "${BOARD_CONFIG_PATH}" |
+      tail -n 1
+  )
+  kernel_defconfig=$(
+    sed -n 's/^export RK_KERNEL_DEFCONFIG=\(.*\)$/\1/p' "${BOARD_CONFIG_PATH}" |
+      tail -n 1
+  )
+
+  [ -n "${kernel_dts}" ] || fail "Could not read RK_KERNEL_DTS from ${BOARD_CONFIG_PATH}"
+  [ -n "${kernel_defconfig}" ] || fail "Could not read RK_KERNEL_DEFCONFIG from ${BOARD_CONFIG_PATH}"
+
+  kernel_dts_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${kernel_dts}"
+  kernel_defconfig_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/configs/${kernel_defconfig}"
+
+  [ -f "${kernel_dts_path}" ] || fail "Missing kernel DTS: ${kernel_dts_path}"
+  [ -f "${kernel_defconfig_path}" ] || fail "Missing kernel defconfig: ${kernel_defconfig_path}"
+
+  mkdir -p "${SDK_DIR}/config"
+  ln -snf "${kernel_dts_path}" "${SDK_DIR}/config/dts_config"
+  ln -snf "${kernel_defconfig_path}" "${SDK_DIR}/config/kernel_defconfig"
+}
+
+check_sdk_layout() {
+  stage "Checking SDK configuration"
+
+  [ -f "${SDK_BOARD_CONFIG_LINK}" ] || fail "Missing .BoardConfig.mk: ${SDK_BOARD_CONFIG_LINK}"
+  [ -f "${SDK_BUILDROOT_DEFCONFIG}" ] || fail "Missing buildroot defconfig: ${SDK_BUILDROOT_DEFCONFIG}"
+  [ -f "${SDK_KERNEL_FRAGMENT_PATH}" ] || fail "Missing injected kernel fragment: ${SDK_KERNEL_FRAGMENT_PATH}"
+  [ -f "${SDK_DIR}/config/kernel_defconfig" ] || fail "Missing kernel defconfig symlink in SDK config/"
+  [ -f "${SDK_DIR}/config/dts_config" ] || fail "Missing DTS config symlink in SDK config/"
+
+  printf 'Check [OK]: %s\n' "${SDK_BOARD_CONFIG_LINK}"
+  printf 'Check [OK]: %s\n' "${SDK_BUILDROOT_DEFCONFIG}"
+  printf 'Check [OK]: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
+  printf 'Check [OK]: %s\n' "${SDK_DIR}/config/kernel_defconfig"
+  printf 'Check [OK]: %s\n' "${SDK_DIR}/config/dts_config"
+}
+
 sync_sdk_repo() {
   repo_url=$1
   repo_ref=$2
@@ -146,6 +186,11 @@ stage "Installing tailscale-ready kernel fragment"
 install -m 0644 "${KERNEL_FRAGMENT}" "${SDK_KERNEL_FRAGMENT_PATH}"
 printf 'Kernel fragment: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
 
+stage "Linking SDK kernel configuration"
+link_sdk_config_files
+printf 'Kernel defconfig link: %s\n' "${SDK_DIR}/config/kernel_defconfig"
+printf 'DTS config link: %s\n' "${SDK_DIR}/config/dts_config"
+
 stage "Writing merged Buildroot defconfig"
 mkdir -p "${SDK_DIR}/config"
 {
@@ -158,11 +203,13 @@ printf 'Merged defconfig: %s\n' "${SDK_BUILDROOT_DEFCONFIG}"
 
 stage "Validating SDK environment"
 check_host_deps
+check_sdk_layout
 (
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
   export PATH="${TOOLCHAIN_BIN}:${PATH}"
-  ./build.sh info
+  printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
+  printf 'Buildroot defconfig: %s\n' "${BASE_DEFCONFIG}"
 )
 
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
