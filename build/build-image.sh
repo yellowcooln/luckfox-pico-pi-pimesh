@@ -53,6 +53,34 @@ read_board_var() {
   ' "${BOARD_CONFIG_PATH}"
 }
 
+default_board_var() {
+  var_name=$1
+  case "${BOARD_CONFIG_REL}:${var_name}" in
+    project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk:RK_BUILDROOT_DEFCONFIG)
+      printf '%s' 'luckfox_pico_w_defconfig'
+      ;;
+    project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk:RK_KERNEL_DTS)
+      printf '%s' 'rv1106g-luckfox-pico-pi.dts'
+      ;;
+    project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk:RK_KERNEL_DEFCONFIG)
+      printf '%s' 'luckfox_rv1106_linux_defconfig'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+board_var_or_default() {
+  var_name=$1
+  value=$(read_board_var "${var_name}" || true)
+  if [ -n "${value}" ]; then
+    printf '%s' "${value}"
+    return 0
+  fi
+  default_board_var "${var_name}" || return 1
+}
+
 check_host_deps() {
   stage "Checking host dependencies"
 
@@ -82,8 +110,8 @@ check_host_deps() {
 }
 
 link_sdk_config_files() {
-  kernel_dts=$(read_board_var RK_KERNEL_DTS)
-  kernel_defconfig=$(read_board_var RK_KERNEL_DEFCONFIG)
+  kernel_dts=$(board_var_or_default RK_KERNEL_DTS)
+  kernel_defconfig=$(board_var_or_default RK_KERNEL_DEFCONFIG)
 
   [ -n "${kernel_dts}" ] || fail "Could not read RK_KERNEL_DTS from ${BOARD_CONFIG_PATH}"
   [ -n "${kernel_defconfig}" ] || fail "Could not read RK_KERNEL_DEFCONFIG from ${BOARD_CONFIG_PATH}"
@@ -176,7 +204,7 @@ sync_sdk_repo "${SDK_REPO}" "${SDK_REF}" "${SDK_DIR}"
 [ -f "${TOOLCHAIN_ENV}" ] || fail "Missing Luckfox toolchain env script: ${TOOLCHAIN_ENV}"
 [ -d "${TOOLCHAIN_BIN}" ] || fail "Missing Luckfox toolchain bin directory: ${TOOLCHAIN_BIN}"
 
-BASE_DEFCONFIG=$(read_board_var RK_BUILDROOT_DEFCONFIG)
+BASE_DEFCONFIG=$(board_var_or_default RK_BUILDROOT_DEFCONFIG)
 [ -n "${BASE_DEFCONFIG}" ] || fail "Could not read RK_BUILDROOT_DEFCONFIG from ${BOARD_CONFIG_PATH}"
 
 BASE_DEFCONFIG_PATH="${SDK_DIR}/sysdrv/tools/board/buildroot/${BASE_DEFCONFIG}"
