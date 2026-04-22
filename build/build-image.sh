@@ -186,6 +186,7 @@ BOARD_CONFIG_REL="${BOARD_CONFIG_REL:-project/cfg/BoardConfig_IPC/BoardConfig-EM
 SDK_DIR="${1:-${SDK_WORK_DIR}}"
 BOARD_CONFIG_PATH="${SDK_DIR}/${BOARD_CONFIG_REL}"
 SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
+SDK_GENERATED_BOARD_CONFIG="${SDK_DIR}/config/pymc_board_config.mk"
 SDK_BUILDROOT_DEFCONFIG="${SDK_DIR}/config/buildroot_defconfig"
 SDK_BUILDSH="${SDK_DIR}/build.sh"
 TOOLCHAIN_ENV="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/env_install_toolchain.sh"
@@ -211,13 +212,12 @@ BASE_DEFCONFIG_PATH="${SDK_DIR}/sysdrv/tools/board/buildroot/${BASE_DEFCONFIG}"
 [ -f "${BASE_DEFCONFIG_PATH}" ] || fail "Missing base Buildroot defconfig: ${BASE_DEFCONFIG_PATH}"
 
 stage "Selecting Luckfox board config"
-cat > "${SDK_BOARD_CONFIG_LINK}" <<EOF
-#!/bin/bash
-. "${BOARD_CONFIG_PATH}"
-export RK_KERNEL_DEFCONFIG_FRAGMENT="\${RK_KERNEL_DEFCONFIG_FRAGMENT:-} ${SDK_KERNEL_FRAGMENT_NAME}"
-EOF
-chmod +x "${SDK_BOARD_CONFIG_LINK}"
+mkdir -p "${SDK_DIR}/config"
+cat "${BOARD_CONFIG_PATH}" > "${SDK_GENERATED_BOARD_CONFIG}"
+printf '\nexport RK_KERNEL_DEFCONFIG_FRAGMENT="${RK_KERNEL_DEFCONFIG_FRAGMENT} %s"\n' "${SDK_KERNEL_FRAGMENT_NAME}" >> "${SDK_GENERATED_BOARD_CONFIG}"
+ln -snf "${SDK_GENERATED_BOARD_CONFIG}" "${SDK_BOARD_CONFIG_LINK}"
 printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
+printf 'Generated board config: %s\n' "${SDK_GENERATED_BOARD_CONFIG}"
 
 stage "Installing tailscale-ready kernel fragment"
 install -m 0644 "${KERNEL_FRAGMENT}" "${SDK_KERNEL_FRAGMENT_PATH}"
@@ -229,7 +229,6 @@ printf 'Kernel defconfig link: %s\n' "${SDK_DIR}/config/kernel_defconfig"
 printf 'DTS config link: %s\n' "${SDK_DIR}/config/dts_config"
 
 stage "Writing merged Buildroot defconfig"
-mkdir -p "${SDK_DIR}/config"
 {
   cat "${BASE_DEFCONFIG_PATH}"
   printf '\n'
