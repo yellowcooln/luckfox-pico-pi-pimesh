@@ -20,3 +20,10 @@ Expected first steps after flashing:
 
 If you want to watch the repeater log:
   sh buildroot-manage.sh logs
+
+The wrapper clones stock upstream pyMC_Repeater to:
+  /root/pyMC_Repeater
+
+After that, you can also run the upstream repo directly:
+  cd /root/pyMC_Repeater
+  bash manage.sh status

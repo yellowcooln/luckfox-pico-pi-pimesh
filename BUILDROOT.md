@@ -7,6 +7,7 @@ Goals:
 - SSH server enabled so `ssh` and `scp` work
 - `git` present on-device
 - Python 3 present with the MeshCore runtime dependencies built into the image
+- enough userland compatibility for stock upstream `pyMC_Repeater/manage.sh` to run on Buildroot
 - pyMC Repeater helper files preloaded at `/opt/pymc-repeater-buildroot`
 - convenience symlink at `/root/pymc-repeater-buildroot`
 
@@ -68,6 +69,7 @@ The post-build script copies these into the target rootfs:
 - `/opt/pymc-repeater-buildroot/buildroot-manage.sh`
 - `/opt/pymc-repeater-buildroot/README.md`
 - `/opt/pymc-repeater-buildroot/BUILDROOT.md`
+- `/opt/pymc-repeater-buildroot/shims/*`
 It also creates:
 
 - `/root/pymc-repeater-buildroot -> /opt/pymc-repeater-buildroot`
@@ -84,7 +86,8 @@ The intended user flow on a flashed image is:
 
 ## Notes
 
-- `buildroot-manage.sh` now detects when the image already contains the required Python modules and skips the `pip` bootstrap path.
+- `buildroot-manage.sh` is now a thin proxy: it clones `pyMC_Repeater` into `~/pyMC_Repeater` and calls upstream `manage.sh`.
 - `buildroot-manage.sh` leaves radio hardware unset so `pyMC_Repeater` can ask during setup.
 - The package fragment intentionally focuses on "usable first boot" rather than replacing Luckfox board support or bootloader settings.
 - The runtime manager clones stock upstream `pyMC_core` and `pyMC_Repeater` from their `dev` branches and does not apply local patches.
+- Luckfox-specific GPIO handling that previously lived in local `pyMC_core` patches is expected to be provided by upstream `pyMC_core`.

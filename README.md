@@ -2,9 +2,9 @@
 
 This repo packages a Buildroot-friendly `pyMC_Repeater` setup for a Luckfox Pico Pi, aimed at the upstream `pyMC_Repeater` `dev` branch and not tied to a single radio model.
 
-It does not use `systemd`.
+It does not use full native `systemd`. The shipped image includes a small compatibility wrapper so the stock upstream `pyMC_Repeater/manage.sh` install flow can run on Buildroot.
 
-It installs a repo-local runtime, runs `pyMC_Repeater` from checked-out source, and manages the process with a BusyBox-friendly shell script.
+The image-side helper in `/root/pymc-repeater-buildroot` is only a bootstrap/proxy. It clones stock upstream `pyMC_Repeater` into the current user's home directory, then runs the repo's own `manage.sh`.
 
 For building a flashable Luckfox image with this repo layered onto the vendor Buildroot tree, use the files in [build](/home/yellowcooln/luckfox-pico-pi-pimesh/build).
 
@@ -46,9 +46,9 @@ sh buildroot-manage.sh advert
 
 What this does:
 
-- `doctor` checks the basic image/runtime prerequisites
-- `install` clones stock upstream `pyMC_core` and `pyMC_Repeater`, prepares Python, and writes config
-- `start` launches the repeater
+- `doctor` checks the image baseline needed by upstream `pyMC_Repeater/manage.sh`
+- `install` clones stock upstream `pyMC_Repeater` into `~/pyMC_Repeater` and hands off to the repo's own `manage.sh install`
+- `start` proxies to upstream `manage.sh start`
 - `wait-ready` waits for the local API to come up
 - `advert` runs the known-good `pymc-cli advert` test path
 
@@ -56,6 +56,10 @@ The helper files are preloaded in the image at:
 
 - `/opt/pymc-repeater-buildroot`
 - `/root/pymc-repeater-buildroot`
+
+The upstream repo checkout is expected to live at:
+
+- `/root/pyMC_Repeater`
 
 When the image download is finalized, this README will be the main post-flash reference for users.
 
@@ -84,9 +88,9 @@ sh buildroot-manage.sh advert
 Main commands:
 
 - `install`
-- `configure`
+- `upgrade`
+- `config`
 - `doctor`
-- `run`
 - `start`
 - `wait-ready`
 - `advert`
@@ -94,8 +98,9 @@ Main commands:
 - `restart`
 - `status`
 - `logs`
-- `install-init-script`
-- `uninstall-init-script`
+- `uninstall`
+- `repo-path`
+- `repo-sync`
 
 ## Radio Selection
 
@@ -111,7 +116,7 @@ The runtime helper now treats process start and API readiness as separate things
 
 That matches the failure mode seen during bring-up: `pyMC_Repeater` can have a live process before port `8000` is actually ready to accept `pymc-cli` connections. Use `wait-ready` before CLI-driven smoke tests, and `advert` if you want the known-good `pymc-cli advert` path wrapped into one command.
 
-Board-specific radio pin mapping, DTS edits, and any temporary DEBUG-mode bring-up steps should stay outside the default image and runtime scripts. The baseline here is: build a stock upstream `pyMC` image, start the service cleanly, wait for the API to be ready, and only then do radio-specific testing.
+Board-specific radio pin mapping, DTS edits, and any temporary DEBUG-mode bring-up steps should stay outside the default image and runtime scripts. Luckfox GPIO handling that previously required local `pyMC_core` patching is now expected to come from upstream `pyMC_core`, not this repo. The baseline here is: boot a stock upstream-ready `pyMC` image, run upstream `manage.sh install`, start the service cleanly, wait for the API to be ready, and only then do radio-specific testing.
 
 ## Scope
 

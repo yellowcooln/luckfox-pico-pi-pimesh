@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+subcmd="${1:-}"
+shift || true
+
+case "${subcmd}" in
+  update)
+    echo "[buildroot apt-get shim] update: no-op"
+    ;;
+  install)
+    echo "[buildroot apt-get shim] install: assuming image already contains requested packages: $*"
+    ;;
+  *)
+    echo "[buildroot apt-get shim] unsupported subcommand: ${subcmd}" >&2
+    ;;
+esac
+
+exit 0

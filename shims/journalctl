@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+LOG_FILE="/var/log/pymc_repeater/service.log"
+follow=0
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -f)
+      follow=1
+      ;;
+  esac
+  shift
+done
+
+mkdir -p "$(dirname "${LOG_FILE}")"
+touch "${LOG_FILE}"
+
+if [ "${follow}" -eq 1 ]; then
+  exec tail -f "${LOG_FILE}"
+fi
+
+exec cat "${LOG_FILE}"
