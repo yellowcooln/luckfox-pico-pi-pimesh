@@ -9,6 +9,7 @@ This repo is still not the board support package by itself. The final bootable e
 - the rootfs overlay
 - the post-build install step
 - the `pyMC` package fragment
+- a small kernel fragment to make the image Tailscale-ready by default
 - a helper script that downloads the SDK into a repo-local workspace and drives the full build
 
 ## What You Need
@@ -52,11 +53,30 @@ What the script does:
 1. clones or refreshes the official Luckfox SDK into `build/.work/luckfox-pico`
 2. selects `project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk`
 3. writes `config/buildroot_defconfig` from Luckfox's `luckfox_pico_w_defconfig` plus [luckfox_pico_pi_pymc.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment:1)
-4. exports this repo as `BR2_EXTERNAL`
-5. runs `./build.sh check`
-6. runs `./build.sh info`
-7. runs `./build.sh`
-8. runs `./build.sh firmware`
+4. installs [luckfox_pico_pi_tailscale_kernel.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_tailscale_kernel.fragment:1) into the SDK and appends it to the Pico Pi kernel fragment list
+5. exports this repo as `BR2_EXTERNAL`
+6. runs `./build.sh check`
+7. runs `./build.sh info`
+8. runs `./build.sh`
+9. runs `./build.sh firmware`
+
+## Tailscale Baseline
+
+The image now defaults to a Tailscale-ready baseline.
+
+Userspace side:
+
+- `iproute2`
+- `iptables`
+- `iptables` nft backend
+
+Kernel side:
+
+- `CONFIG_TUN=y`
+- IPv6 enabled
+- netfilter and iptables/NAT support forced on in the added kernel fragment
+
+This does not bundle the `tailscale` binary itself. It makes the image ready to install and run Tailscale cleanly after flashing.
 
 To validate the setup without starting a full build:
 

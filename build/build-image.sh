@@ -69,6 +69,7 @@ fi
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
 FRAGMENT="${REPO_ROOT}/build/luckfox_pico_pi_pymc.fragment"
+KERNEL_FRAGMENT="${REPO_ROOT}/build/luckfox_pico_pi_tailscale_kernel.fragment"
 SDK_REPO="${SDK_REPO:-https://github.com/LuckfoxTECH/luckfox-pico.git}"
 SDK_REF="${SDK_REF:-main}"
 SDK_WORK_DIR="${SDK_WORK_DIR:-${REPO_ROOT}/build/.work/luckfox-pico}"
@@ -80,6 +81,8 @@ SDK_BUILDROOT_DEFCONFIG="${SDK_DIR}/config/buildroot_defconfig"
 SDK_BUILDSH="${SDK_DIR}/build.sh"
 TOOLCHAIN_ENV="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/env_install_toolchain.sh"
 TOOLCHAIN_BIN="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin"
+SDK_KERNEL_FRAGMENT_NAME="luckfox_pymc_tailscale.config"
+SDK_KERNEL_FRAGMENT_PATH="${SDK_DIR}/sysdrv/source/kernel/arch/arm/configs/${SDK_KERNEL_FRAGMENT_NAME}"
 
 need_cmd sed
 need_cmd tail
@@ -88,6 +91,7 @@ sync_sdk_repo "${SDK_REPO}" "${SDK_REF}" "${SDK_DIR}"
 [ -f "${SDK_BUILDSH}" ] || fail "Missing Luckfox SDK build script: ${SDK_BUILDSH}"
 [ -f "${BOARD_CONFIG_PATH}" ] || fail "Missing board config: ${BOARD_CONFIG_PATH}"
 [ -f "${FRAGMENT}" ] || fail "Missing config fragment: ${FRAGMENT}"
+[ -f "${KERNEL_FRAGMENT}" ] || fail "Missing kernel fragment: ${KERNEL_FRAGMENT}"
 [ -f "${TOOLCHAIN_ENV}" ] || fail "Missing Luckfox toolchain env script: ${TOOLCHAIN_ENV}"
 [ -d "${TOOLCHAIN_BIN}" ] || fail "Missing Luckfox toolchain bin directory: ${TOOLCHAIN_BIN}"
 
@@ -101,8 +105,17 @@ BASE_DEFCONFIG_PATH="${SDK_DIR}/sysdrv/tools/board/buildroot/${BASE_DEFCONFIG}"
 [ -f "${BASE_DEFCONFIG_PATH}" ] || fail "Missing base Buildroot defconfig: ${BASE_DEFCONFIG_PATH}"
 
 stage "Selecting Luckfox board config"
-ln -snf "${BOARD_CONFIG_REL}" "${SDK_BOARD_CONFIG_LINK}"
+cat > "${SDK_BOARD_CONFIG_LINK}" <<EOF
+#!/bin/bash
+. "${BOARD_CONFIG_PATH}"
+export RK_KERNEL_DEFCONFIG_FRAGMENT="\${RK_KERNEL_DEFCONFIG_FRAGMENT:-} ${SDK_KERNEL_FRAGMENT_NAME}"
+EOF
+chmod +x "${SDK_BOARD_CONFIG_LINK}"
 printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
+
+stage "Installing tailscale-ready kernel fragment"
+install -m 0644 "${KERNEL_FRAGMENT}" "${SDK_KERNEL_FRAGMENT_PATH}"
+printf 'Kernel fragment: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
 
 stage "Writing merged Buildroot defconfig"
 mkdir -p "${SDK_DIR}/config"
