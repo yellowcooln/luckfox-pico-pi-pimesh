@@ -55,7 +55,7 @@ What the script does:
 3. writes `config/buildroot_defconfig` from Luckfox's `luckfox_pico_w_defconfig` plus [luckfox_pico_pi_pymc.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment:1)
 4. installs [luckfox_pico_pi_tailscale_kernel.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_tailscale_kernel.fragment:1) into the SDK and appends it to the Pico Pi kernel fragment list
 5. exports this repo as `BR2_EXTERNAL`
-6. runs `./build.sh check`
+6. runs direct host prerequisite checks
 7. runs `./build.sh info`
 8. runs `./build.sh`
 9. runs `./build.sh firmware`

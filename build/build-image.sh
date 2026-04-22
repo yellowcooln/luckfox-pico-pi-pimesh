@@ -35,6 +35,34 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
+check_host_deps() {
+  stage "Checking host dependencies"
+
+  need_cmd dtc
+  printf 'Check [OK]: dtc --version\n'
+
+  need_cmd makeinfo
+  printf 'Check [OK]: makeinfo --version\n'
+
+  need_cmd gperf
+  printf 'Check [OK]: gperf --version\n'
+
+  if dpkg --list | grep 'g++-.*-multilib' >/dev/null 2>&1; then
+    printf 'Check [OK]: dpkg --list | grep g++-.*-multilib\n'
+  else
+    fail 'Missing required package: g++-multilib'
+  fi
+
+  if dpkg --list | grep 'gcc-.*-multilib' >/dev/null 2>&1; then
+    printf 'Check [OK]: dpkg --list | grep gcc-.*-multilib\n'
+  else
+    fail 'Missing required package: gcc-multilib'
+  fi
+
+  need_cmd make
+  printf 'Check [OK]: make -v\n'
+}
+
 sync_sdk_repo() {
   repo_url=$1
   repo_ref=$2
@@ -128,11 +156,11 @@ printf 'Base defconfig: %s\n' "${BASE_DEFCONFIG_PATH}"
 printf 'Merged defconfig: %s\n' "${SDK_BUILDROOT_DEFCONFIG}"
 
 stage "Validating SDK environment"
+check_host_deps
 (
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
   export PATH="${TOOLCHAIN_BIN}:${PATH}"
-  ./build.sh check
   ./build.sh info
 )
 
