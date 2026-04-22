@@ -1,6 +1,6 @@
-# Buildroot Integration
+# Luckfox Pico Pi pyMC Repeater Buildroot Integration
 
-This repository now doubles as a `br2-external` tree for a Buildroot image that is usable for `pyMC_Repeater` on first boot.
+This repository now doubles as a `br2-external` tree for a Luckfox Pico Pi Buildroot image that is usable for `pyMC_Repeater` on first boot.
 
 Goals:
 
@@ -71,5 +71,5 @@ It also creates:
 ## Notes
 
 - `buildroot-manage.sh` now detects when the image already contains the required Python modules and skips the `pip` bootstrap path.
-- `buildroot-manage.sh` does not force a board profile unless you explicitly set `PYMC_HARDWARE_PROFILE`.
+- `buildroot-manage.sh` leaves radio hardware unset by default so `pyMC_Repeater` can ask during setup.
 - The package fragment intentionally focuses on "usable first boot" rather than replacing Luckfox board-specific kernel or bootloader settings.

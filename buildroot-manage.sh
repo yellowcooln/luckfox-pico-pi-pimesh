@@ -34,7 +34,7 @@ Usage: sh buildroot-manage.sh <command>
 
 Commands:
   install                Install Python deps, sync patched sources, and write config
-  configure              Rebuild config.yaml and optionally preseed a hardware profile
+  configure              Rebuild config.yaml without forcing radio hardware
   doctor                 Check Buildroot prerequisites and optional radio device nodes
   run                    Run pyMC_Repeater in the foreground
   start                  Start pyMC_Repeater in the background; use "start logs" to tail logs
@@ -361,10 +361,6 @@ write_config() {
   if [ -z "${preamble_length}" ]; then
     preamble_length=$(prompt_with_default "Preamble length" "17")
   fi
-  if [ -z "${hw_profile}" ]; then
-    hw_profile=$(prompt_optional "Hardware profile key from radio-settings.json (leave blank for later UI/setup)" "")
-  fi
-
   CONFIG_PATH="${CONFIG_PATH}" \
   IDENTITY_PATH="${IDENTITY_PATH}" \
   DATA_DIR="${DATA_DIR}" \
@@ -568,7 +564,7 @@ show_status() {
   fi
   info "config: ${CONFIG_PATH}"
   info "log: ${LOG_FILE}"
-  info "hardware profile: ${PYMC_HARDWARE_PROFILE:-<not preset>}"
+  info "hardware profile: ${PYMC_HARDWARE_PROFILE:-<unset, repeater setup will choose>}"
 }
 
 tail_logs() {
