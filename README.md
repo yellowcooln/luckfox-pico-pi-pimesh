@@ -1,25 +1,26 @@
-# Luckfox Pico Pi Buildroot PiMesh Setup
+# pyMC Repeater Buildroot Setup
 
-This repo packages a Buildroot-friendly `pyMC_Repeater` setup for a `Luckfox Pico Pi` using the split-gpio `PiMesh 1W v1` / `MeshAdv` wiring that was documented in `/home/yellowcooln/luckfox-pimesh.md`.
+This repo packages a Buildroot-friendly `pyMC_Repeater` setup aimed at the `pyMC_Repeater` `dev` branch first, not a single radio model.
 
 It does not use `systemd`.
 
 It installs a repo-local runtime, runs `pyMC_Repeater` from checked-out source, and manages the process with a BusyBox-friendly shell script.
 
+Radio-specific configuration is intentionally deferred to:
+
+- the `pyMC_Repeater` web setup flow
+- `radio-settings.json`
+- or an optional preseeded hardware profile passed to `buildroot-manage.sh`
+
 ## What It Assumes
 
-- Buildroot image on the Luckfox
-- Python `3.10+`
-- `python3 -m pip`
-- Python development headers (`Python.h`)
-- native build tools (`gcc`, `make`)
+- Buildroot image with Python `3.10+`
 - `git`
 - writable filesystem
-- radio device nodes present:
-  - `/dev/spidev0.0`
-  - `/dev/gpiochip1`
-  - `/dev/gpiochip3`
-  - `/dev/gpiochip4`
+- if you want the fallback `pip` path:
+  - `python3 -m pip`
+  - Python development headers (`Python.h`)
+  - native build tools (`gcc`, `make`)
 
 ## Commands
 
@@ -48,20 +49,19 @@ Main commands:
 - `install-init-script`
 - `uninstall-init-script`
 
-## Defaults
+## Hardware Profiles
 
-The default hardware profile is `pimesh-1w-v1`.
+By default, `buildroot-manage.sh` does not force any hardware profile.
 
-That maps the Luckfox pins as:
+That matches the direction of `pyMC_Repeater/manage.sh`: install the app and let repeater-side config choose the board.
 
-- `CS` -> `gpiochip4 line 17`
-- `RESET` -> `gpiochip1 line 22`
-- `BUSY` -> `gpiochip3 line 27`
-- `IRQ` -> `gpiochip1 line 23`
-- `TXEN` -> `gpiochip1 line 20`
-- `RXEN` -> `gpiochip1 line 21`
+If you do want to preseed a board profile from `radio-settings.json`, set:
 
-The script also applies the local `pyMC_core` Luckfox patches that were not fully available upstream:
+```sh
+PYMC_HARDWARE_PROFILE=<hardware-key> sh buildroot-manage.sh configure
+```
+
+The current `pyMC_core` test patches included here are still the Luckfox-oriented ones that were used for split-chip SX1262 testing:
 
 - split-gpiochip SX1262 support
 - old-kernel IRQ fallback
@@ -70,12 +70,12 @@ The script also applies the local `pyMC_core` Luckfox patches that were not full
 
 ## Important Caveat
 
-This gets the software stack into the known-good test state from the handoff notes.
+This repo is now primarily about building a usable Buildroot image for `pyMC_Repeater dev`.
 
-It does not solve the underlying RF issue described in `luckfox-pimesh.md`. The prior conclusion was:
+It does not by itself solve the underlying RF issue from the earlier Luckfox/PiMesh tests. Those findings still apply to that specific hardware path:
 
 - the Luckfox can initialize the SX1262
 - GPIO control looks correct
 - RF TX/RX was still dead on the tested Pico Pi boards
 
-So this repo is the right install/test harness, not proof that the hardware path is fixed.
+So treat the image work as the generic deployment foundation, and the included Luckfox patches as test support for current hardware experiments.

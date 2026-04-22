@@ -1,14 +1,14 @@
 # Buildroot Integration
 
-This repository now doubles as a `br2-external` tree for a Luckfox Pico Pi image that is usable on first boot.
+This repository now doubles as a `br2-external` tree for a Buildroot image that is usable for `pyMC_Repeater` on first boot.
 
 Goals:
 
 - SSH server enabled so `ssh` and `scp` work
 - `git` present on-device
 - Python 3 present with the MeshCore runtime dependencies built into the image
-- PiMesh helper files preloaded at `/opt/luckfox-pico-pi-pimesh`
-- convenience symlink at `/root/luckfox-pico-pi-pimesh`
+- pyMC Repeater helper files preloaded at `/opt/pymc-repeater-buildroot`
+- convenience symlink at `/root/pymc-repeater-buildroot`
 
 ## What This Repo Adds
 
@@ -19,13 +19,13 @@ Goals:
 - `board/luckfox/pico-pi-pimesh/rootfs-overlay`
   static files copied into the target rootfs
 - `board/luckfox/pico-pi-pimesh/post-build.sh`
-  copies this repo's runtime files into `/opt/luckfox-pico-pi-pimesh` inside the image
+  copies this repo's runtime files into `/opt/pymc-repeater-buildroot` inside the image
 - `package/yellowcooln/*`
   custom Buildroot Python packages for dependencies missing from upstream Buildroot
 
 ## Vendor Buildroot Workflow
 
-This repo is not a full standalone board port. It is meant to be layered on top of the Luckfox vendor Buildroot tree.
+This repo is not a full standalone board port. It is meant to be layered on top of a vendor Buildroot tree, such as the Luckfox vendor Buildroot tree.
 
 Typical flow:
 
@@ -59,16 +59,17 @@ make olddefconfig
 
 The post-build script copies these into the target rootfs:
 
-- `/opt/luckfox-pico-pi-pimesh/buildroot-manage.sh`
-- `/opt/luckfox-pico-pi-pimesh/README.md`
-- `/opt/luckfox-pico-pi-pimesh/BUILDROOT.md`
-- `/opt/luckfox-pico-pi-pimesh/patches/*.patch`
+- `/opt/pymc-repeater-buildroot/buildroot-manage.sh`
+- `/opt/pymc-repeater-buildroot/README.md`
+- `/opt/pymc-repeater-buildroot/BUILDROOT.md`
+- `/opt/pymc-repeater-buildroot/patches/*.patch`
 
 It also creates:
 
-- `/root/luckfox-pico-pi-pimesh -> /opt/luckfox-pico-pi-pimesh`
+- `/root/pymc-repeater-buildroot -> /opt/pymc-repeater-buildroot`
 
 ## Notes
 
 - `buildroot-manage.sh` now detects when the image already contains the required Python modules and skips the `pip` bootstrap path.
+- `buildroot-manage.sh` does not force a board profile unless you explicitly set `PYMC_HARDWARE_PROFILE`.
 - The package fragment intentionally focuses on "usable first boot" rather than replacing Luckfox board-specific kernel or bootloader settings.

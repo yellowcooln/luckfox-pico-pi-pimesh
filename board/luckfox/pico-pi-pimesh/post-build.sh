@@ -3,7 +3,7 @@ set -eu
 
 TARGET_DIR="$1"
 EXTERNAL_DIR="${BR2_EXTERNAL_YELLOWCOOLN_PATH:?missing BR2_EXTERNAL_YELLOWCOOLN_PATH}"
-APP_DIR="${TARGET_DIR}/opt/luckfox-pico-pi-pimesh"
+APP_DIR="${TARGET_DIR}/opt/pymc-repeater-buildroot"
 
 mkdir -p "${APP_DIR}/patches"
 
@@ -16,4 +16,4 @@ for patch in "${EXTERNAL_DIR}"/patches/*.patch; do
 done
 
 mkdir -p "${TARGET_DIR}/root"
-ln -snf /opt/luckfox-pico-pi-pimesh "${TARGET_DIR}/root/luckfox-pico-pi-pimesh"
+ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
