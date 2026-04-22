@@ -15,6 +15,10 @@ install -m 0644 "${EXTERNAL_DIR}/BUILDROOT.md" "${APP_DIR}/BUILDROOT.md"
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
 
+mkdir -p "${TARGET_DIR}/var/empty"
+chown 0:0 "${TARGET_DIR}/var/empty"
+chmod 0755 "${TARGET_DIR}/var/empty"
+
 # Force the final image to ship with a known SSH login even if vendor overlays
 # replace Buildroot's generated shadow file earlier in the SDK pipeline.
 if [ -f "${TARGET_DIR}/etc/shadow" ]; then

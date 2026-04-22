@@ -7,7 +7,6 @@ PermitRootLogin yes
 PasswordAuthentication yes
 KbdInteractiveAuthentication no
 ChallengeResponseAuthentication no
-UsePAM no
 X11Forwarding no
 PrintMotd no
 Subsystem sftp /usr/libexec/sftp-server
