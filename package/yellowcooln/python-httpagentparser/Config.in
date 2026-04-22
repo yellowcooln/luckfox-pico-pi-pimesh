@@ -1,0 +1,6 @@
+config BR2_PACKAGE_PYTHON_HTTPAGENTPARSER
+	bool "python-httpagentparser"
+	help
+	  HTTP User-Agent header parser.
+
+	  https://pypi.org/project/httpagentparser/

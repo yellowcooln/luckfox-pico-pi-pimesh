@@ -1,0 +1,5 @@
+menu "yellowcooln external options"
+
+source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/Config.in"
+
+endmenu

@@ -1,0 +1,8 @@
+config BR2_PACKAGE_PYTHON_CHERRYPY_CORS
+	bool "python-cherrypy-cors"
+	depends on BR2_PACKAGE_PYTHON_CHERRYPY
+	select BR2_PACKAGE_PYTHON_HTTPAGENTPARSER
+	help
+	  CORS handling as a CherryPy tool.
+
+	  https://pypi.org/project/cherrypy-cors/

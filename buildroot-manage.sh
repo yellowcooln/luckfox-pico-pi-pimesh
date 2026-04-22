@@ -82,7 +82,28 @@ PY
 ensure_base_tools() {
   need_cmd git
   ensure_python_version
-  "${PYTHON_BIN}" -m pip --version >/dev/null 2>&1 || fail "python3 -m pip is required"
+}
+
+python_runtime_ready() {
+  "${PYTHON_BIN}" - <<'PY'
+modules = [
+    "yaml",
+    "cherrypy",
+    "cherrypy_cors",
+    "paho.mqtt.client",
+    "psutil",
+    "jwt",
+    "ws4py",
+    "nacl",
+    "periphery",
+    "serial",
+    "usb",
+    "Crypto",
+]
+
+for module in modules:
+    __import__(module)
+PY
 }
 
 ensure_native_build_prereqs() {
@@ -185,6 +206,12 @@ pip_bootstrap() {
 prepare_python_runtime() {
   stage "Preparing Python runtime"
   ensure_directories
+
+  if python_runtime_ready; then
+    info "Using system Python packages already present in the image"
+    return
+  fi
+
   ensure_native_build_prereqs
 
   if "${PYTHON_BIN}" -m venv --help >/dev/null 2>&1; then
