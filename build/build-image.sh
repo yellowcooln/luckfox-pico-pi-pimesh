@@ -3,12 +3,19 @@ set -eu
 
 usage() {
   cat <<'EOF'
-Usage: ./build/build-image.sh <luckfox-sdk-dir>
+Usage: ./build-image.sh [luckfox-sdk-dir]
 
 Example:
-  ./build/build-image.sh ~/src/luckfox-pico
+  ./build-image.sh
+  ./build-image.sh /path/to/luckfox-pico
 
 Environment:
+  SDK_REPO           Luckfox SDK git URL.
+                     Default: https://github.com/LuckfoxTECH/luckfox-pico.git
+  SDK_REF            Luckfox SDK branch, tag, or commit.
+                     Default: main
+  SDK_WORK_DIR       Repo-local SDK checkout directory when no positional path is given.
+                     Default: <repo>/build/.work/luckfox-pico
   BOARD_CONFIG_REL   SDK-relative board config path.
                      Default: project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk
   SKIP_BUILD         Set to 1 to stop after check/info validation.
@@ -24,21 +31,49 @@ fail() {
   exit 1
 }
 
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+sync_sdk_repo() {
+  repo_url=$1
+  repo_ref=$2
+  dest_dir=$3
+
+  need_cmd git
+
+  if [ -d "${dest_dir}/.git" ]; then
+    stage "Refreshing Luckfox SDK"
+    git -C "${dest_dir}" fetch --tags --force origin
+    git -C "${dest_dir}" reset --hard
+    git -C "${dest_dir}" clean -fd
+  else
+    stage "Cloning Luckfox SDK"
+    mkdir -p "$(dirname "${dest_dir}")"
+    git clone "${repo_url}" "${dest_dir}"
+  fi
+
+  git -C "${dest_dir}" checkout -f "${repo_ref}"
+}
+
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   usage
   exit 0
 fi
 
-[ $# -eq 1 ] || {
+[ $# -le 1 ] || {
   usage >&2
   exit 1
 }
 
-SDK_DIR=$1
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
 FRAGMENT="${REPO_ROOT}/build/luckfox_pico_pi_pymc.fragment"
+SDK_REPO="${SDK_REPO:-https://github.com/LuckfoxTECH/luckfox-pico.git}"
+SDK_REF="${SDK_REF:-main}"
+SDK_WORK_DIR="${SDK_WORK_DIR:-${REPO_ROOT}/build/.work/luckfox-pico}"
 BOARD_CONFIG_REL="${BOARD_CONFIG_REL:-project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk}"
+SDK_DIR="${1:-${SDK_WORK_DIR}}"
 BOARD_CONFIG_PATH="${SDK_DIR}/${BOARD_CONFIG_REL}"
 SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
 SDK_BUILDROOT_DEFCONFIG="${SDK_DIR}/config/buildroot_defconfig"
@@ -46,7 +81,10 @@ SDK_BUILDSH="${SDK_DIR}/build.sh"
 TOOLCHAIN_ENV="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/env_install_toolchain.sh"
 TOOLCHAIN_BIN="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin"
 
-[ -d "${SDK_DIR}" ] || fail "Luckfox SDK directory not found: ${SDK_DIR}"
+need_cmd sed
+need_cmd tail
+sync_sdk_repo "${SDK_REPO}" "${SDK_REF}" "${SDK_DIR}"
+
 [ -f "${SDK_BUILDSH}" ] || fail "Missing Luckfox SDK build script: ${SDK_BUILDSH}"
 [ -f "${BOARD_CONFIG_PATH}" ] || fail "Missing board config: ${BOARD_CONFIG_PATH}"
 [ -f "${FRAGMENT}" ] || fail "Missing config fragment: ${FRAGMENT}"

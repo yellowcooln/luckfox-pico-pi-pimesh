@@ -9,12 +9,11 @@ This repo is still not the board support package by itself. The final bootable e
 - the rootfs overlay
 - the post-build install step
 - the `pyMC` package fragment
-- a helper script that drives the build
+- a helper script that downloads the SDK into a repo-local workspace and drives the full build
 
 ## What You Need
 
 - an Ubuntu 22.04 x86_64 machine
-- the official Luckfox Pico SDK
 - this repo checked out locally
 
 ## SDK Prerequisites
@@ -24,20 +23,6 @@ Install the host packages Luckfox documents for Ubuntu 22.04:
 ```sh
 sudo apt-get update
 sudo apt-get install -y git ssh make gcc gcc-multilib g++-multilib module-assistant expect g++ gawk texinfo libssl-dev bison flex fakeroot cmake unzip gperf autoconf device-tree-compiler libncurses5-dev pkg-config bc python-is-python3 passwd openssl openssh-server openssh-client vim file cpio rsync curl
-```
-
-Clone the official SDK:
-
-```sh
-git clone https://github.com/LuckfoxTECH/luckfox-pico.git
-```
-
-Load the Luckfox cross-toolchain environment:
-
-```sh
-cd luckfox-pico/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf
-source env_install_toolchain.sh
-cd ~/luckfox-pico
 ```
 
 The validated Pico Pi eMMC Buildroot board config in the official SDK is:
@@ -54,81 +39,68 @@ RK_BUILDROOT_DEFCONFIG=luckfox_pico_w_defconfig
 
 ## Build Flow
 
-Select the Luckfox Pico Pi eMMC Buildroot board in the SDK:
+From a fresh VM:
 
 ```sh
-./build.sh lunch
+git clone https://github.com/yellowcooln/luckfox-pico-pi-pimesh.git
+cd luckfox-pico-pi-pimesh/build
+./build-image.sh
 ```
 
-If the board is not shown directly in the first menu, choose `custom` and then select:
+What the script does:
 
-```text
-BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk
-```
-
-Verify the SDK environment:
-
-```sh
-./build.sh check
-./build.sh info
-```
-
-Then run the helper from this repo:
-
-```sh
-./build/build-image.sh /path/to/luckfox-pico
-```
-
-Example:
-
-```sh
-./build/build-image.sh ~/src/luckfox-pico
-```
+1. clones or refreshes the official Luckfox SDK into `build/.work/luckfox-pico`
+2. selects `project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk`
+3. writes `config/buildroot_defconfig` from Luckfox's `luckfox_pico_w_defconfig` plus [luckfox_pico_pi_pymc.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment:1)
+4. exports this repo as `BR2_EXTERNAL`
+5. runs `./build.sh check`
+6. runs `./build.sh info`
+7. runs `./build.sh`
+8. runs `./build.sh firmware`
 
 To validate the setup without starting a full build:
 
 ```sh
-SKIP_BUILD=1 ./build/build-image.sh ~/src/luckfox-pico
+cd build
+SKIP_BUILD=1 ./build-image.sh
 ```
 
-What it does:
-
-1. selects `project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk`
-2. writes `config/buildroot_defconfig` from Luckfox's `luckfox_pico_w_defconfig` plus [luckfox_pico_pi_pymc.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment:1)
-3. exports this repo as `BR2_EXTERNAL`
-4. runs `./build.sh check`
-5. runs `./build.sh info`
-6. runs `./build.sh`
-7. runs `./build.sh firmware`
-
-If you are building only with the official Luckfox SDK flow first, use:
+To use an already-existing SDK checkout instead of the repo-local workspace:
 
 ```sh
-./build.sh
-./build.sh firmware
+cd build
+./build-image.sh /path/to/luckfox-pico
+```
+
+To pin a specific Luckfox SDK ref:
+
+```sh
+cd build
+SDK_REF=main ./build-image.sh
 ```
 
 The completed image artifacts will be in the SDK tree under:
 
 ```text
-output/image/
+build/.work/luckfox-pico/output/image/
 ```
 
-Luckfox's flash documentation expects `output/image/update.img` to be present for eMMC flashing.
+Luckfox's flash documentation expects `update.img` to be present for eMMC flashing.
 
 ## Manual Flow
 
 If you want to do the same process by hand:
 
 ```sh
-cd /path/to/luckfox-pico
+git clone https://github.com/LuckfoxTECH/luckfox-pico.git build/.work/luckfox-pico
+cd build/.work/luckfox-pico
 ln -snf project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk .BoardConfig.mk
 mkdir -p config
 cat sysdrv/tools/board/buildroot/luckfox_pico_w_defconfig \
   /path/to/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment \
   > config/buildroot_defconfig
 export BR2_EXTERNAL=/path/to/luckfox-pico-pi-pimesh
-. tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/env_install_toolchain.sh
+export PATH="$PWD/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin:$PATH"
 ./build.sh check
 ./build.sh info
 ./build.sh
@@ -137,7 +109,7 @@ export BR2_EXTERNAL=/path/to/luckfox-pico-pi-pimesh
 
 ## Flashing
 
-Flashing to eMMC is still Luckfox-specific. Use the normal Luckfox Pico Pi flashing path for the image files generated in `output/image/`.
+Flashing to eMMC is still Luckfox-specific. Use the normal Luckfox Pico Pi flashing path for the image files generated in `build/.work/luckfox-pico/output/image/`.
 
 This repo does not replace the vendor bootloader, kernel, partitioning, or flash tooling.
 
