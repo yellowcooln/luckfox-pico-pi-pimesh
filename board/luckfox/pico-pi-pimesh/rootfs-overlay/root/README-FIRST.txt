@@ -10,8 +10,13 @@ Helper files are preloaded at:
 Convenience symlink:
   /root/pymc-repeater-buildroot
 
-Typical first steps:
+Expected first steps after flashing:
   cd /root/pymc-repeater-buildroot
   sh buildroot-manage.sh doctor
   sh buildroot-manage.sh install
-  sh buildroot-manage.sh start logs
+  sh buildroot-manage.sh start
+  sh buildroot-manage.sh wait-ready
+  sh buildroot-manage.sh advert
+
+If you want to watch the repeater log:
+  sh buildroot-manage.sh logs

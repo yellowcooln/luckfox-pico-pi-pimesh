@@ -72,6 +72,16 @@ It also creates:
 
 - `/root/pymc-repeater-buildroot -> /opt/pymc-repeater-buildroot`
 
+The intended user flow on a flashed image is:
+
+1. SSH in as `root` with password `luckfox`
+2. `cd /root/pymc-repeater-buildroot`
+3. `sh buildroot-manage.sh doctor`
+4. `sh buildroot-manage.sh install`
+5. `sh buildroot-manage.sh start`
+6. `sh buildroot-manage.sh wait-ready`
+7. `sh buildroot-manage.sh advert`
+
 ## Notes
 
 - `buildroot-manage.sh` now detects when the image already contains the required Python modules and skips the `pip` bootstrap path.

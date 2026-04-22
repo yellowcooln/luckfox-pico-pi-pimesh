@@ -13,7 +13,53 @@ Radio-specific configuration is intentionally deferred to the normal `pyMC_Repea
 The built image is intended to ship with SSH login enabled and a known default credential:
 `root` / `luckfox`.
 
-## What It Assumes
+## Using The Image
+
+If you are using one of our prebuilt images, this is the normal first-boot flow.
+
+1. Log in over SSH:
+
+```sh
+ssh root@<luckfox-ip>
+```
+
+Default login:
+
+- user: `root`
+- password: `luckfox`
+
+2. Go to the helper directory that ships inside the image:
+
+```sh
+cd /root/pymc-repeater-buildroot
+```
+
+3. Run the setup and first smoke test:
+
+```sh
+sh buildroot-manage.sh doctor
+sh buildroot-manage.sh install
+sh buildroot-manage.sh start
+sh buildroot-manage.sh wait-ready
+sh buildroot-manage.sh advert
+```
+
+What this does:
+
+- `doctor` checks the basic image/runtime prerequisites
+- `install` clones stock upstream `pyMC_core` and `pyMC_Repeater`, prepares Python, and writes config
+- `start` launches the repeater
+- `wait-ready` waits for the local API to come up
+- `advert` runs the known-good `pymc-cli advert` test path
+
+The helper files are preloaded in the image at:
+
+- `/opt/pymc-repeater-buildroot`
+- `/root/pymc-repeater-buildroot`
+
+When the image download is finalized, this README will be the main post-flash reference for users.
+
+## What The Image Assumes
 
 - Buildroot image with Python `3.10+`
 - `git`
