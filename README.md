@@ -10,6 +10,9 @@ For building a flashable Luckfox image with this repo layered onto the vendor Bu
 
 Radio-specific configuration is intentionally deferred to the normal `pyMC_Repeater` setup flow.
 
+The built image is intended to ship with SSH login enabled and a known default credential:
+`root` / `luckfox`.
+
 ## What It Assumes
 
 - Buildroot image with Python `3.10+`

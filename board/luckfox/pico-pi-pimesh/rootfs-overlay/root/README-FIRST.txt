@@ -1,5 +1,9 @@
 pyMC Repeater Buildroot image notes
 
+Default login:
+  user: root
+  password: luckfox
+
 Helper files are preloaded at:
   /opt/pymc-repeater-buildroot
 
