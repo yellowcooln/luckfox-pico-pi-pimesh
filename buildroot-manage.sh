@@ -13,6 +13,8 @@ LAUNCHER_PATH="${RUNTIME_DIR}/run-pymc-repeater.sh"
 PID_FILE="${RUNTIME_DIR}/pymc-repeater.pid"
 LOG_FILE="${LOG_DIR}/pymc-repeater.log"
 INIT_SCRIPT_PATH="/etc/init.d/S95pymc-repeater"
+API_HOST="${API_HOST:-127.0.0.1}"
+API_PORT="${API_PORT:-8000}"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 PYMC_CORE_REPO="${PYMC_CORE_REPO:-https://github.com/rightup/pyMC_core.git}"
@@ -35,6 +37,8 @@ Commands:
   doctor                 Check Buildroot prerequisites and common radio device nodes
   run                    Run pyMC_Repeater in the foreground
   start                  Start pyMC_Repeater in the background; use "start logs" to tail logs
+  wait-ready             Wait for the local pyMC API to accept connections
+  advert                 Wait for the API, then run "pymc-cli advert"
   stop                   Stop the background process
   restart                Restart the background process
   status                 Show runtime status
@@ -383,6 +387,11 @@ PY
   else
     warn "ip command not available"
   fi
+  if command -v pymc-cli >/dev/null 2>&1; then
+    info "pymc-cli: available"
+  else
+    warn "pymc-cli: missing"
+  fi
 }
 
 is_running() {
@@ -401,6 +410,37 @@ run_foreground() {
   exec "${LAUNCHER_PATH}"
 }
 
+wait_ready() {
+  timeout_seconds="${1:-60}"
+  stage "Waiting for pyMC API"
+  end_time=$(( $(date +%s) + timeout_seconds ))
+  while [ "$(date +%s)" -le "${end_time}" ]; do
+    if API_HOST="${API_HOST}" API_PORT="${API_PORT}" "${PYTHON_BIN}" - <<'PY'
+import os
+import socket
+
+host = os.environ["API_HOST"]
+port = int(os.environ["API_PORT"])
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.settimeout(1)
+    raise SystemExit(0 if sock.connect_ex((host, port)) == 0 else 1)
+PY
+    then
+      info "API ready on ${API_HOST}:${API_PORT}"
+      return 0
+    fi
+    sleep 1
+  done
+  fail "Timed out waiting for pyMC API on ${API_HOST}:${API_PORT}. Check: sh buildroot-manage.sh logs"
+}
+
+run_advert() {
+  wait_ready "${1:-60}"
+  need_cmd pymc-cli
+  printf 'advert\nexit\n' | pymc-cli --host "${API_HOST}" --port "${API_PORT}"
+}
+
 start_background() {
   [ -x "${LAUNCHER_PATH}" ] || fail "Launcher missing. Run: sh buildroot-manage.sh install"
   mkdir -p "${LOG_DIR}"
@@ -413,6 +453,7 @@ start_background() {
   sleep 1
   if is_running; then
     info "Started pyMC_Repeater (pid $(cat "${PID_FILE}"))"
+    info "API may still be warming up; use: sh buildroot-manage.sh wait-ready"
   else
     fail "pyMC_Repeater did not stay running. Check: sh buildroot-manage.sh logs"
   fi
@@ -520,6 +561,14 @@ case "${cmd}" in
     if [ "${2:-}" = "logs" ]; then
       tail_logs
     fi
+    ;;
+  wait-ready)
+    shift
+    wait_ready "${1:-60}"
+    ;;
+  advert)
+    shift
+    run_advert "${1:-60}"
     ;;
   stop)
     stop_background

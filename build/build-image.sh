@@ -18,6 +18,20 @@ Environment:
                      Default: <repo>/build/.work/luckfox-pico
   BOARD_CONFIG_REL   SDK-relative board config path.
                      Default: project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk
+  RK_BUILDROOT_DEFCONFIG
+                     Override the Buildroot defconfig if the SDK board file is
+                     missing or cannot be parsed.
+  RK_KERNEL_DTS      Override the kernel DTS if the SDK board file is missing
+                     or cannot be parsed.
+  RK_KERNEL_DEFCONFIG
+                     Override the kernel defconfig if the SDK board file is
+                     missing or cannot be parsed.
+  PYMC_BUILDROOT_FRAGMENT
+                     Buildroot config fragment to append.
+                     Default: <repo>/build/luckfox_pico_pi_pymc.fragment
+  PYMC_KERNEL_FRAGMENT
+                     Kernel config fragment to append.
+                     Default: <repo>/build/luckfox_pico_pi_tailscale_kernel.fragment
   SKIP_BUILD         Set to 1 to stop after check/info validation.
 EOF
 }
@@ -73,6 +87,11 @@ default_board_var() {
 
 board_var_or_default() {
   var_name=$1
+  env_value=$(eval "printf '%s' \"\${${var_name}:-}\"")
+  if [ -n "${env_value}" ]; then
+    printf '%s' "${env_value}"
+    return 0
+  fi
   value=$(read_board_var "${var_name}" || true)
   if [ -n "${value}" ]; then
     printf '%s' "${value}"
@@ -113,8 +132,8 @@ link_sdk_config_files() {
   kernel_dts=$(board_var_or_default RK_KERNEL_DTS)
   kernel_defconfig=$(board_var_or_default RK_KERNEL_DEFCONFIG)
 
-  [ -n "${kernel_dts}" ] || fail "Could not read RK_KERNEL_DTS from ${BOARD_CONFIG_PATH}"
-  [ -n "${kernel_defconfig}" ] || fail "Could not read RK_KERNEL_DEFCONFIG from ${BOARD_CONFIG_PATH}"
+  [ -n "${kernel_dts}" ] || fail "Could not determine RK_KERNEL_DTS from ${BOARD_CONFIG_PATH}. Set RK_KERNEL_DTS explicitly."
+  [ -n "${kernel_defconfig}" ] || fail "Could not determine RK_KERNEL_DEFCONFIG from ${BOARD_CONFIG_PATH}. Set RK_KERNEL_DEFCONFIG explicitly."
 
   kernel_dts_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${kernel_dts}"
   kernel_defconfig_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/configs/${kernel_defconfig}"
@@ -177,8 +196,8 @@ fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
-FRAGMENT="${REPO_ROOT}/build/luckfox_pico_pi_pymc.fragment"
-KERNEL_FRAGMENT="${REPO_ROOT}/build/luckfox_pico_pi_tailscale_kernel.fragment"
+FRAGMENT="${PYMC_BUILDROOT_FRAGMENT:-${REPO_ROOT}/build/luckfox_pico_pi_pymc.fragment}"
+KERNEL_FRAGMENT="${PYMC_KERNEL_FRAGMENT:-${REPO_ROOT}/build/luckfox_pico_pi_tailscale_kernel.fragment}"
 SDK_REPO="${SDK_REPO:-https://github.com/LuckfoxTECH/luckfox-pico.git}"
 SDK_REF="${SDK_REF:-main}"
 SDK_WORK_DIR="${SDK_WORK_DIR:-${REPO_ROOT}/build/.work/luckfox-pico}"
@@ -199,14 +218,14 @@ need_cmd tail
 sync_sdk_repo "${SDK_REPO}" "${SDK_REF}" "${SDK_DIR}"
 
 [ -f "${SDK_BUILDSH}" ] || fail "Missing Luckfox SDK build script: ${SDK_BUILDSH}"
-[ -f "${BOARD_CONFIG_PATH}" ] || fail "Missing board config: ${BOARD_CONFIG_PATH}"
+[ -f "${BOARD_CONFIG_PATH}" ] || fail "Missing board config: ${BOARD_CONFIG_PATH}. Set BOARD_CONFIG_REL to the Luckfox SDK board config you want to build."
 [ -f "${FRAGMENT}" ] || fail "Missing config fragment: ${FRAGMENT}"
 [ -f "${KERNEL_FRAGMENT}" ] || fail "Missing kernel fragment: ${KERNEL_FRAGMENT}"
 [ -f "${TOOLCHAIN_ENV}" ] || fail "Missing Luckfox toolchain env script: ${TOOLCHAIN_ENV}"
 [ -d "${TOOLCHAIN_BIN}" ] || fail "Missing Luckfox toolchain bin directory: ${TOOLCHAIN_BIN}"
 
 BASE_DEFCONFIG=$(board_var_or_default RK_BUILDROOT_DEFCONFIG)
-[ -n "${BASE_DEFCONFIG}" ] || fail "Could not read RK_BUILDROOT_DEFCONFIG from ${BOARD_CONFIG_PATH}"
+[ -n "${BASE_DEFCONFIG}" ] || fail "Could not determine RK_BUILDROOT_DEFCONFIG from ${BOARD_CONFIG_PATH}. Set RK_BUILDROOT_DEFCONFIG explicitly."
 
 BASE_DEFCONFIG_PATH="${SDK_DIR}/sysdrv/tools/board/buildroot/${BASE_DEFCONFIG}"
 [ -f "${BASE_DEFCONFIG_PATH}" ] || fail "Missing base Buildroot defconfig: ${BASE_DEFCONFIG_PATH}"
@@ -246,6 +265,8 @@ check_sdk_layout
   export PATH="${TOOLCHAIN_BIN}:${PATH}"
   printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
   printf 'Buildroot defconfig: %s\n' "${BASE_DEFCONFIG}"
+  printf 'Buildroot fragment: %s\n' "${FRAGMENT}"
+  printf 'Kernel fragment: %s\n' "${KERNEL_FRAGMENT}"
 )
 
 if [ "${SKIP_BUILD:-0}" = "1" ]; then

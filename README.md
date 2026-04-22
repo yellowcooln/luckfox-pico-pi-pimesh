@@ -28,7 +28,8 @@ Run on the Luckfox:
 sh buildroot-manage.sh install
 sh buildroot-manage.sh doctor
 sh buildroot-manage.sh start
-sh buildroot-manage.sh start logs
+sh buildroot-manage.sh wait-ready
+sh buildroot-manage.sh advert
 ```
 
 Main commands:
@@ -38,6 +39,8 @@ Main commands:
 - `doctor`
 - `run`
 - `start`
+- `wait-ready`
+- `advert`
 - `stop`
 - `restart`
 - `status`
@@ -52,6 +55,14 @@ Main commands:
 That matches the direction of `pyMC_Repeater/manage.sh`: install the app and let repeater-side config choose the hardware during setup.
 
 The intent here is to keep the Buildroot side generic and stock, then let `pyMC_Repeater` ask for the radio during its own configuration flow.
+
+## Runtime Notes
+
+The runtime helper now treats process start and API readiness as separate things.
+
+That matches the failure mode seen during bring-up: `pyMC_Repeater` can have a live process before port `8000` is actually ready to accept `pymc-cli` connections. Use `wait-ready` before CLI-driven smoke tests, and `advert` if you want the known-good `pymc-cli advert` path wrapped into one command.
+
+Board-specific radio pin mapping, DTS edits, and any temporary DEBUG-mode bring-up steps should stay outside the default image and runtime scripts. The baseline here is: build a stock upstream `pyMC` image, start the service cleanly, wait for the API to be ready, and only then do radio-specific testing.
 
 ## Scope
 
