@@ -279,6 +279,16 @@ patch_sdk_dts() {
         sub(/"disabled"/, "\"okay\"")
       }
 
+      if ($0 ~ /^&usbdrd_dwc3[[:space:]]*\{/) {
+        in_usb = 1
+        usb_indent = indent_of($0) "    "
+        usb_has_dr_mode = 0
+      }
+      if (in_usb && $0 ~ /^[[:space:]]*dr_mode[[:space:]]*=/) {
+        usb_has_dr_mode = 1
+        sub(/"peripheral"/, "\"host\"")
+      }
+
       if (in_spi && $0 ~ /^[[:space:]]*spidev@0[[:space:]]*\{/) {
         in_spidev = 1
         spidev_indent = indent_of($0) "    "
@@ -292,6 +302,12 @@ patch_sdk_dts() {
           print spidev_indent "status = \"okay\";"
         }
         in_spidev = 0
+      }
+      if (in_usb && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        if (!usb_has_dr_mode) {
+          print usb_indent "dr_mode = \"host\";"
+        }
+        in_usb = 0
       }
 
       print
@@ -316,8 +332,11 @@ patch_sdk_dts() {
     in_spidev && /status[[:space:]]*=[[:space:]]*"okay";/ { spidev_ok = 1 }
     in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spidev = 0 }
     in_spi && !in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spi = 0 }
-    END { exit !(fiq_ok && spi_ok && spidev_ok) }
-  ' "${dts_path}" || fail "Failed to apply SPI DTS patch to ${dts_path}"
+    /^&usbdrd_dwc3[[:space:]]*\{/ { in_usb = 1 }
+    in_usb && /dr_mode[[:space:]]*=[[:space:]]*"host";/ { usb_ok = 1 }
+    in_usb && /^[[:space:]]*};[[:space:]]*$/ { in_usb = 0 }
+    END { exit !(fiq_ok && spi_ok && spidev_ok && usb_ok) }
+  ' "${dts_path}" || fail "Failed to apply SPI/USB DTS patch to ${dts_path}"
   printf 'Patched DTS: %s\n' "${dts_path}"
 }
 
@@ -456,7 +475,7 @@ stage "Installing tailscale-ready kernel fragment"
 install -m 0644 "${KERNEL_FRAGMENT}" "${SDK_KERNEL_FRAGMENT_PATH}"
 printf 'Kernel fragment: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
 
-stage "Patching Luckfox DTS for SPI"
+stage "Patching Luckfox DTS for SPI and USB host"
 patch_sdk_dts
 patch_sdk_board_include
 
