@@ -35,6 +35,7 @@ restore_vendor_overlays() {
 restore_vendor_overlays
 
 mkdir -p "${APP_DIR}"
+rm -rf "${APP_DIR}/shims"
 
 install -m 0755 "${EXTERNAL_DIR}/buildroot-manage.sh" "${APP_DIR}/buildroot-manage.sh"
 install -m 0755 "${EXTERNAL_DIR}/tailscale-manage.sh" "${APP_DIR}/tailscale-manage.sh"
