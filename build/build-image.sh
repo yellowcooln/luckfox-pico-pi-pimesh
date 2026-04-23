@@ -224,6 +224,76 @@ check_sdk_layout() {
   printf 'Check [OK]: %s\n' "${SDK_DIR}/config/dts_config"
 }
 
+patch_sdk_dts() {
+  kernel_dts=$(board_var_or_default RK_KERNEL_DTS)
+  dts_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${kernel_dts}"
+  [ -f "${dts_path}" ] || fail "Missing kernel DTS for patching: ${dts_path}"
+
+  tmp_file=$(mktemp)
+  awk '
+    function indent_of(line,   out) {
+      match(line, /^[[:space:]]*/)
+      out = substr(line, 1, RLENGTH)
+      return out
+    }
+
+    {
+      if ($0 ~ /^&fiq_debugger[[:space:]]*\{/) {
+        in_fiq = 1
+      }
+      if (in_fiq && $0 ~ /^[[:space:]]*status[[:space:]]*=[[:space:]]*"okay";/) {
+        sub(/"okay"/, "\"disabled\"")
+      }
+
+      if ($0 ~ /^&spi0[[:space:]]*\{/) {
+        in_spi = 1
+      }
+      if (in_spi && $0 ~ /^[[:space:]]*status[[:space:]]*=[[:space:]]*"disabled";/) {
+        sub(/"disabled"/, "\"okay\"")
+      }
+
+      if (in_spi && $0 ~ /^[[:space:]]*spidev@0[[:space:]]*\{/) {
+        in_spidev = 1
+        spidev_indent = indent_of($0) "    "
+        spidev_has_status = 0
+      }
+      if (in_spidev && $0 ~ /^[[:space:]]*status[[:space:]]*=/) {
+        spidev_has_status = 1
+      }
+      if (in_spidev && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        if (!spidev_has_status) {
+          print spidev_indent "status = \"okay\";"
+        }
+        in_spidev = 0
+      }
+
+      print
+
+      if (in_fiq && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        in_fiq = 0
+      }
+      if (in_spi && !in_spidev && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        in_spi = 0
+      }
+    }
+  ' "${dts_path}" > "${tmp_file}"
+  mv "${tmp_file}" "${dts_path}"
+
+  awk '
+    /^&fiq_debugger[[:space:]]*\{/ { in_fiq = 1 }
+    in_fiq && /status[[:space:]]*=[[:space:]]*"disabled";/ { fiq_ok = 1 }
+    in_fiq && /^[[:space:]]*};[[:space:]]*$/ { in_fiq = 0 }
+    /^&spi0[[:space:]]*\{/ { in_spi = 1 }
+    in_spi && /status[[:space:]]*=[[:space:]]*"okay";/ { spi_ok = 1 }
+    in_spi && /spidev@0[[:space:]]*\{/ { in_spidev = 1 }
+    in_spidev && /status[[:space:]]*=[[:space:]]*"okay";/ { spidev_ok = 1 }
+    in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spidev = 0 }
+    in_spi && !in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spi = 0 }
+    END { exit !(fiq_ok && spi_ok && spidev_ok) }
+  ' "${dts_path}" || fail "Failed to apply SPI DTS patch to ${dts_path}"
+  printf 'Patched DTS: %s\n' "${dts_path}"
+}
+
 sync_sdk_repo() {
   repo_url=$1
   repo_ref=$2
@@ -303,6 +373,9 @@ printf 'Generated board config: %s\n' "${SDK_GENERATED_BOARD_CONFIG}"
 stage "Installing tailscale-ready kernel fragment"
 install -m 0644 "${KERNEL_FRAGMENT}" "${SDK_KERNEL_FRAGMENT_PATH}"
 printf 'Kernel fragment: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
+
+stage "Patching Luckfox DTS for SPI"
+patch_sdk_dts
 
 stage "Linking SDK kernel configuration"
 link_sdk_config_files

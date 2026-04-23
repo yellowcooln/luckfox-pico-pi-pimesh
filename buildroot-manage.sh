@@ -9,7 +9,11 @@ API_PORT="${API_PORT:-8000}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 PYMC_REPEATER_REPO="${PYMC_REPEATER_REPO:-https://github.com/rightup/pyMC_Repeater.git}"
 PYMC_REPEATER_REF="${PYMC_REPEATER_REF:-dev}"
-PYMC_REPEATER_HOME="${PYMC_REPEATER_HOME:-${HOME:-/root}}"
+DEFAULT_REPEATER_HOME="${HOME:-/root}"
+if [ "$(id -u 2>/dev/null || echo 1)" = "0" ]; then
+  DEFAULT_REPEATER_HOME="/root"
+fi
+PYMC_REPEATER_HOME="${PYMC_REPEATER_HOME:-${DEFAULT_REPEATER_HOME}}"
 PYMC_REPEATER_DIR="${PYMC_REPEATER_DIR:-${PYMC_REPEATER_HOME}/pyMC_Repeater}"
 
 usage() {
@@ -17,8 +21,9 @@ usage() {
 Usage: sh buildroot-manage.sh <command>
 
 This script is only a Buildroot image bootstrap/proxy. It clones stock upstream
-pyMC_Repeater into the current user's home directory and then hands off to the
-repo's own manage.sh. The image now provides real systemd/journalctl; the only
+pyMC_Repeater into `/root` when run as root, otherwise into the current user's
+home directory, and then hands off to the repo's own manage.sh. The image now
+provides real systemd/journalctl; the only
 compatibility wrappers left are for apt-get, pip, and account-management tools
 that upstream manage.sh assumes are present on Debian-like systems.
 
