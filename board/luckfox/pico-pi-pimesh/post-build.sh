@@ -19,15 +19,6 @@ done
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
 
-mkdir -p "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants"
-ln -snf /usr/lib/systemd/system/systemd-networkd.service \
-  "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
-ln -snf /usr/lib/systemd/system/systemd-resolved.service \
-  "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
-ln -snf /usr/lib/systemd/system/sshd.service \
-  "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants/sshd.service"
-ln -snf ../run/systemd/resolve/stub-resolv.conf "${TARGET_DIR}/etc/resolv.conf"
-
 mkdir -p "${TARGET_DIR}/var/empty"
 chmod 0755 "${TARGET_DIR}/var/empty"
 

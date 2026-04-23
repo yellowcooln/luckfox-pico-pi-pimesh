@@ -20,25 +20,24 @@ usage() {
   cat <<'EOF'
 Usage: sh buildroot-manage.sh <command>
 
-This script is only a Buildroot image bootstrap/proxy. It clones stock upstream
-pyMC_Repeater into `/root` when run as root, otherwise into the current user's
-home directory, and then hands off to the repo's own manage.sh. The image now
-provides real systemd/journalctl; the only
-compatibility wrappers left are for apt-get, pip, and account-management tools
-that upstream manage.sh assumes are present on Debian-like systems.
+This script is only a Buildroot image bootstrap/proxy. It clones pyMC_Repeater
+into `/root` when run as root, otherwise into the current user's home
+directory, and then hands off to the repo's Buildroot-specific
+`buildroot-manage.sh` when present. If the repo does not ship that file yet, it
+falls back to the repo's stock `manage.sh`.
 
 Commands:
   doctor      Check image prerequisites for upstream pyMC install
-  install     Clone/update ~/pyMC_Repeater and run upstream "manage.sh install"
-  upgrade     Refresh ~/pyMC_Repeater and run upstream "manage.sh upgrade"
-  config      Run upstream "manage.sh config"
-  start       Run upstream "manage.sh start"
-  stop        Run upstream "manage.sh stop"
-  restart     Run upstream "manage.sh restart"
-  status      Run upstream "manage.sh status"
-  logs        Run upstream "manage.sh logs"
-  uninstall   Run upstream "manage.sh uninstall"
-  debug       Run upstream "manage.sh debug"
+  install     Clone/update ~/pyMC_Repeater and run the repo install flow
+  upgrade     Refresh ~/pyMC_Repeater and run the repo upgrade flow
+  config      Run the repo config flow
+  start       Run the repo service start flow
+  stop        Run the repo service stop flow
+  restart     Run the repo service restart flow
+  status      Run the repo status flow
+  logs        Run the repo logs flow
+  uninstall   Run the repo uninstall flow
+  debug       Run the repo debug flow
   wait-ready  Wait for the local pyMC API port to open
   advert      Wait for the API, then run "pymc-cli advert"
   repo-path   Print the upstream pyMC_Repeater checkout path
@@ -108,6 +107,14 @@ run_repo_manage() {
   action="$1"
   shift || true
   ensure_repo_present
+  if [ -f "${PYMC_REPEATER_DIR}/buildroot-manage.sh" ]; then
+    exec env \
+      PATH="${SHIM_DIR}:${PATH}" \
+      TERM="${TERM:-xterm}" \
+      PYMC_SILENT="${PYMC_SILENT:-1}" \
+      bash "${PYMC_REPEATER_DIR}/buildroot-manage.sh" "${action}" "$@"
+  fi
+
   exec env \
     PATH="${SHIM_DIR}:${PATH}" \
     TERM="${TERM:-xterm}" \
@@ -135,14 +142,6 @@ doctor() {
     fi
   done
 
-  for cmd in systemctl journalctl pkaction; do
-    if command -v "${cmd}" >/dev/null 2>&1; then
-      info "found ${cmd}"
-    else
-      warn "missing ${cmd}"
-    fi
-  done
-
   if "${PYTHON_BIN}" -m venv --help >/dev/null 2>&1; then
     info "python venv support available"
   else
@@ -151,6 +150,7 @@ doctor() {
 
   if "${PYTHON_BIN}" - <<'PY'
 modules = [
+    "sqlite3",
     "yaml",
     "cherrypy",
     "cherrypy_cors",
@@ -183,7 +183,9 @@ PY
     fi
   done
 
-  if [ -f "${PYMC_REPEATER_DIR}/manage.sh" ]; then
+  if [ -f "${PYMC_REPEATER_DIR}/buildroot-manage.sh" ]; then
+    info "repo Buildroot helper present at ${PYMC_REPEATER_DIR}/buildroot-manage.sh"
+  elif [ -f "${PYMC_REPEATER_DIR}/manage.sh" ]; then
     info "repo checkout present at ${PYMC_REPEATER_DIR}"
   else
     info "repo checkout not present yet; install will clone it to ${PYMC_REPEATER_DIR}"
