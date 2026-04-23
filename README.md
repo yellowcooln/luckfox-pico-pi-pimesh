@@ -50,7 +50,7 @@ sh buildroot-manage.sh advert
 What this does:
 
 - `doctor` checks the image baseline needed by the Buildroot install flow
-- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater`, hands off to the repo's own `buildroot-manage.sh install`, then asks which Luckfox radio profile to apply
+- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater`, hands off to the repo's own `buildroot-manage.sh install`, then seeds the repeater config locally
 - `start` proxies to the repo's Buildroot service wrapper
 - `wait-ready` waits for the local API to come up
 - `advert` runs the known-good `pymc-cli advert` test path
@@ -98,6 +98,7 @@ Main commands:
 
 - `install`
 - `upgrade`
+- `configure`
 - `radio-profile`
 - `config`
 - `doctor`
@@ -121,7 +122,22 @@ Current choices:
 - `PiMesh V2`
 - `PiMesh V1 / MeshAdv`
 
-You can reapply that later with:
+During install it now also asks for:
+
+- repeater name
+- admin password
+- radio settings
+
+and writes those directly into `/etc/pymc_repeater/config.yaml` so the service
+does not need to rely on the web setup wizard.
+
+You can rerun the full config seeding later with:
+
+```sh
+sh buildroot-manage.sh configure
+```
+
+Or just reapply the Luckfox pin mapping with:
 
 ```sh
 sh buildroot-manage.sh radio-profile

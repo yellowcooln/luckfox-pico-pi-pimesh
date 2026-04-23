@@ -28,7 +28,15 @@ After install, the image helper now asks which Luckfox radio profile you have:
   1) PiMesh V2
   2) PiMesh V1 / MeshAdv
 
+It also seeds:
+  - repeater name
+  - admin password
+  - radio settings
+
+so the service can start with a usable config and avoid the web setup wizard.
+
 You can rerun that later with:
+  sh buildroot-manage.sh configure
   sh buildroot-manage.sh radio-profile
 
 Tailscale helper:

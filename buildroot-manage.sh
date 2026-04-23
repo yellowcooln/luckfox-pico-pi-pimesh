@@ -29,6 +29,7 @@ Commands:
   doctor      Check image prerequisites for upstream pyMC install
   install     Clone/update ~/pyMC_Repeater and run the repo install flow
   upgrade     Refresh ~/pyMC_Repeater and run the repo upgrade flow
+  configure   Seed repeater config to skip the web setup wizard
   radio-profile
               Apply Luckfox radio pin mapping to /etc/pymc_repeater/config.yaml
   config      Run the repo config flow
@@ -82,6 +83,28 @@ prompt_choice() {
   if [ -z "${answer}" ]; then
     answer="${default_answer}"
   fi
+  printf '%s' "${answer}"
+}
+
+prompt_secret() {
+  prompt_text=$1
+  answer=""
+
+  if [ ! -t 0 ]; then
+    printf '%s' ''
+    return 0
+  fi
+
+  printf '%s: ' "${prompt_text}" >&2
+  old_stty=$(stty -g 2>/dev/null || true)
+  if [ -n "${old_stty}" ]; then
+    stty -echo 2>/dev/null || true
+  fi
+  IFS= read -r answer
+  if [ -n "${old_stty}" ]; then
+    stty "${old_stty}" 2>/dev/null || true
+  fi
+  printf '\n' >&2
   printf '%s' "${answer}"
 }
 
@@ -276,6 +299,130 @@ EOF
   apply_luckfox_radio_profile "${normalized}"
 }
 
+seed_repeater_config() {
+  cfg="${PYMC_CONFIG_PATH:-/etc/pymc_repeater/config.yaml}"
+  [ -f "${cfg}" ] || fail "Missing pyMC config: ${cfg}"
+
+  current_name=$("${PYTHON_BIN}" - <<'PY'
+import yaml
+from pathlib import Path
+path = Path("/etc/pymc_repeater/config.yaml")
+data = yaml.safe_load(path.read_text()) or {}
+print((data.get("repeater") or {}).get("node_name") or "mesh-repeater-01")
+PY
+)
+
+  node_name="${PYMC_NODE_NAME:-}"
+  if [ -z "${node_name}" ]; then
+    node_name=$(prompt_choice "Repeater name" "${current_name}")
+  fi
+  [ -n "${node_name}" ] || fail "Repeater name cannot be empty"
+
+  admin_password="${PYMC_ADMIN_PASSWORD:-}"
+  if [ -z "${admin_password}" ]; then
+    while :; do
+      admin_password=$(prompt_secret "Admin password (min 6 chars)")
+      confirm_password=$(prompt_secret "Confirm admin password")
+      [ "${admin_password}" = "${confirm_password}" ] || {
+        warn "passwords did not match"
+        continue
+      }
+      [ "${#admin_password}" -ge 6 ] || {
+        warn "password must be at least 6 characters"
+        continue
+      }
+      break
+    done
+  fi
+  [ "${#admin_password}" -ge 6 ] || fail "Admin password must be at least 6 characters"
+
+  freq_mhz="${PYMC_RADIO_FREQUENCY_MHZ:-910.525}"
+  spreading_factor="${PYMC_RADIO_SPREADING_FACTOR:-7}"
+  bandwidth_khz="${PYMC_RADIO_BANDWIDTH_KHZ:-62.5}"
+  coding_rate="${PYMC_RADIO_CODING_RATE:-5}"
+  tx_power="${PYMC_RADIO_TX_POWER_DBM:-22}"
+
+  if [ -t 0 ]; then
+    cat <<EOF
+
+Radio settings:
+  Frequency MHz [${freq_mhz}]
+  Spreading factor [${spreading_factor}]
+  Bandwidth kHz [${bandwidth_khz}]
+  Coding rate [${coding_rate}]
+  TX power dBm [${tx_power}]
+EOF
+    freq_mhz=$(prompt_choice "Frequency MHz" "${freq_mhz}")
+    spreading_factor=$(prompt_choice "Spreading factor" "${spreading_factor}")
+    bandwidth_khz=$(prompt_choice "Bandwidth kHz" "${bandwidth_khz}")
+    coding_rate=$(prompt_choice "Coding rate" "${coding_rate}")
+    tx_power=$(prompt_choice "TX power dBm" "${tx_power}")
+  fi
+
+  jwt_secret=$("${PYTHON_BIN}" - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+)
+
+  PYMC_CONFIG_PATH="${cfg}" \
+  PYMC_NODE_NAME="${node_name}" \
+  PYMC_ADMIN_PASSWORD="${admin_password}" \
+  PYMC_JWT_SECRET="${jwt_secret}" \
+  PYMC_RADIO_FREQUENCY_MHZ="${freq_mhz}" \
+  PYMC_RADIO_SPREADING_FACTOR="${spreading_factor}" \
+  PYMC_RADIO_BANDWIDTH_KHZ="${bandwidth_khz}" \
+  PYMC_RADIO_CODING_RATE="${coding_rate}" \
+  PYMC_RADIO_TX_POWER_DBM="${tx_power}" \
+  "${PYTHON_BIN}" - <<'PY'
+from pathlib import Path
+import os
+import yaml
+
+path = Path(os.environ["PYMC_CONFIG_PATH"])
+data = yaml.safe_load(path.read_text()) or {}
+
+repeater = data.setdefault("repeater", {})
+security = repeater.setdefault("security", {})
+radio = data.setdefault("radio", {})
+
+repeater["node_name"] = os.environ["PYMC_NODE_NAME"]
+security["admin_password"] = os.environ["PYMC_ADMIN_PASSWORD"]
+security["jwt_secret"] = os.environ["PYMC_JWT_SECRET"]
+
+radio["frequency"] = int(float(os.environ["PYMC_RADIO_FREQUENCY_MHZ"]) * 1_000_000)
+radio["spreading_factor"] = int(os.environ["PYMC_RADIO_SPREADING_FACTOR"])
+radio["bandwidth"] = int(float(os.environ["PYMC_RADIO_BANDWIDTH_KHZ"]) * 1000)
+radio["coding_rate"] = int(os.environ["PYMC_RADIO_CODING_RATE"])
+radio["tx_power"] = int(os.environ["PYMC_RADIO_TX_POWER_DBM"])
+radio.setdefault("preamble_length", 17)
+
+path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+PY
+
+  info "configured repeater name and admin password in ${cfg}"
+}
+
+configure_postinstall() {
+  choose_and_apply_radio_profile
+  seed_repeater_config
+
+  stage "Restarting pyMC service with seeded config"
+  if [ -x /etc/init.d/S80pymc-repeater ]; then
+    /etc/init.d/S80pymc-repeater restart || true
+  else
+    warn "init script not found; skipping restart"
+    return 0
+  fi
+
+  sleep 2
+  if /etc/init.d/S80pymc-repeater status >/dev/null 2>&1; then
+    info "pyMC service restarted"
+  else
+    warn "pyMC service did not report running after restart"
+  fi
+}
+
 doctor() {
   stage "Checking image baseline"
   ensure_base_tools
@@ -377,7 +524,7 @@ case "${cmd}" in
     clone_or_refresh_repo
     shift
     run_repo_manage install "$@"
-    choose_and_apply_radio_profile
+    configure_postinstall
     ;;
   upgrade)
     ensure_base_tools
@@ -393,6 +540,10 @@ case "${cmd}" in
     else
       choose_and_apply_radio_profile
     fi
+    ;;
+  configure)
+    shift
+    configure_postinstall
     ;;
   config|start|stop|restart|status|logs|uninstall|debug)
     ensure_base_tools
