@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_BACKPORTS_TARFILE
+	bool "python-backports-tarfile"
+	select BR2_PACKAGE_PYTHON3
+	help
+	  Backport of the CPython tarfile module used by jaraco.context.
+
+	  https://pypi.org/project/backports.tarfile/

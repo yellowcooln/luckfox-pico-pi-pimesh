@@ -109,7 +109,6 @@ run_repo_manage() {
   ensure_repo_present
   if [ -f "${PYMC_REPEATER_DIR}/buildroot-manage.sh" ]; then
     exec env \
-      PATH="${SHIM_DIR}:${PATH}" \
       TERM="${TERM:-xterm}" \
       PYMC_SILENT="${PYMC_SILENT:-1}" \
       bash "${PYMC_REPEATER_DIR}/buildroot-manage.sh" "${action}" "$@"
@@ -134,14 +133,6 @@ doctor() {
     fi
   done
 
-  for shim in apt-get getent pip useradd usermod; do
-    if [ -x "${SHIM_DIR}/${shim}" ]; then
-      info "shim ready: ${shim}"
-    else
-      warn "missing shim: ${shim}"
-    fi
-  done
-
   if "${PYTHON_BIN}" -m venv --help >/dev/null 2>&1; then
     info "python venv support available"
   else
@@ -151,6 +142,7 @@ doctor() {
   if "${PYTHON_BIN}" - <<'PY'
 modules = [
     "sqlite3",
+    "backports.tarfile",
     "yaml",
     "cherrypy",
     "cherrypy_cors",
@@ -185,8 +177,12 @@ PY
 
   if [ -f "${PYMC_REPEATER_DIR}/buildroot-manage.sh" ]; then
     info "repo Buildroot helper present at ${PYMC_REPEATER_DIR}/buildroot-manage.sh"
+    info "legacy PATH shims are not used for the dedicated Buildroot flow"
   elif [ -f "${PYMC_REPEATER_DIR}/manage.sh" ]; then
     info "repo checkout present at ${PYMC_REPEATER_DIR}"
+    if [ -d "${SHIM_DIR}" ]; then
+      info "legacy shims remain available only for stock manage.sh fallback"
+    fi
   else
     info "repo checkout not present yet; install will clone it to ${PYMC_REPEATER_DIR}"
   fi

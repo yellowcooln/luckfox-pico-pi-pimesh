@@ -10,5 +10,6 @@ PYTHON_JARACO_CONTEXT_SITE = https://files.pythonhosted.org/packages/df/ad/f3777
 PYTHON_JARACO_CONTEXT_SETUP_TYPE = setuptools
 PYTHON_JARACO_CONTEXT_LICENSE = MIT
 PYTHON_JARACO_CONTEXT_LICENSE_FILES = LICENSE
+PYTHON_JARACO_CONTEXT_DEPENDENCIES = python-backports-tarfile
 
 $(eval $(python-package))
