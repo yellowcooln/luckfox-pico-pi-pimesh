@@ -113,6 +113,7 @@ maybe_zip_artifacts() {
 
 read_board_var() {
   var_name=$1
+  config_path="${BOARD_CONFIG_SOURCE_PATH:-${BOARD_CONFIG_PATH}}"
   need_cmd awk
   awk -F= -v key="${var_name}" '
     $0 ~ "^[[:space:]]*export[[:space:]]+" key "=" {
@@ -126,7 +127,7 @@ read_board_var() {
       print value
       exit
     }
-  ' "${BOARD_CONFIG_PATH}"
+  ' "${config_path}"
 }
 
 default_board_var() {
@@ -251,99 +252,22 @@ reset_cached_python_state() {
     "${buildroot_output_dir}/build/packages-file-list-staging.txt"
 }
 
-patch_sdk_dts() {
-  kernel_dts=$(board_var_or_default RK_KERNEL_DTS)
-  dts_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${kernel_dts}"
-  [ -f "${dts_path}" ] || fail "Missing kernel DTS for patching: ${dts_path}"
+prepare_custom_pimesh_dts() {
+  vendor_dts_name=$(read_board_var RK_KERNEL_DTS || true)
+  [ -n "${vendor_dts_name}" ] || vendor_dts_name=$(default_board_var RK_KERNEL_DTS)
+  vendor_dts_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${vendor_dts_name}"
+  vendor_dtsi_name="rv1106-luckfox-pico-pi-ipc.dtsi"
+  vendor_dtsi_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${vendor_dtsi_name}"
 
-  tmp_file=$(mktemp)
-  awk '
-    function indent_of(line,   out) {
-      match(line, /^[[:space:]]*/)
-      out = substr(line, 1, RLENGTH)
-      return out
-    }
+  [ -f "${vendor_dts_path}" ] || fail "Missing vendor DTS: ${vendor_dts_path}"
+  [ -f "${vendor_dtsi_path}" ] || fail "Missing vendor DTS include: ${vendor_dtsi_path}"
 
-    {
-      if ($0 ~ /^&fiq_debugger[[:space:]]*\{/) {
-        in_fiq = 1
-      }
-      if (in_fiq && $0 ~ /^[[:space:]]*status[[:space:]]*=[[:space:]]*"okay";/) {
-        sub(/"okay"/, "\"disabled\"")
-      }
+  custom_dts_name="${PYMC_CUSTOM_DTS_NAME:-${vendor_dts_name%.dts}-pimesh.dts}"
+  custom_dtsi_name="${PYMC_CUSTOM_DTSI_NAME:-rv1106-luckfox-pico-pi-pimesh-ipc.dtsi}"
+  custom_dts_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${custom_dts_name}"
+  custom_dtsi_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${custom_dtsi_name}"
 
-      if ($0 ~ /^&spi0[[:space:]]*\{/) {
-        in_spi = 1
-      }
-      if (in_spi && $0 ~ /^[[:space:]]*status[[:space:]]*=[[:space:]]*"disabled";/) {
-        sub(/"disabled"/, "\"okay\"")
-      }
-
-      if ($0 ~ /^&usbdrd_dwc3[[:space:]]*\{/) {
-        in_usb = 1
-        usb_indent = indent_of($0) "    "
-        usb_has_dr_mode = 0
-      }
-      if (in_usb && $0 ~ /^[[:space:]]*dr_mode[[:space:]]*=/) {
-        usb_has_dr_mode = 1
-        sub(/"peripheral"/, "\"host\"")
-      }
-
-      if (in_spi && $0 ~ /^[[:space:]]*spidev@0[[:space:]]*\{/) {
-        in_spidev = 1
-        spidev_indent = indent_of($0) "    "
-        spidev_has_status = 0
-      }
-      if (in_spidev && $0 ~ /^[[:space:]]*status[[:space:]]*=/) {
-        spidev_has_status = 1
-      }
-      if (in_spidev && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
-        if (!spidev_has_status) {
-          print spidev_indent "status = \"okay\";"
-        }
-        in_spidev = 0
-      }
-      if (in_usb && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
-        if (!usb_has_dr_mode) {
-          print usb_indent "dr_mode = \"host\";"
-        }
-        in_usb = 0
-      }
-
-      print
-
-      if (in_fiq && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
-        in_fiq = 0
-      }
-      if (in_spi && !in_spidev && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
-        in_spi = 0
-      }
-    }
-  ' "${dts_path}" > "${tmp_file}"
-  mv "${tmp_file}" "${dts_path}"
-
-  awk '
-    /^&fiq_debugger[[:space:]]*\{/ { in_fiq = 1 }
-    in_fiq && /status[[:space:]]*=[[:space:]]*"disabled";/ { fiq_ok = 1 }
-    in_fiq && /^[[:space:]]*};[[:space:]]*$/ { in_fiq = 0 }
-    /^&spi0[[:space:]]*\{/ { in_spi = 1 }
-    in_spi && /status[[:space:]]*=[[:space:]]*"okay";/ { spi_ok = 1 }
-    in_spi && /spidev@0[[:space:]]*\{/ { in_spidev = 1 }
-    in_spidev && /status[[:space:]]*=[[:space:]]*"okay";/ { spidev_ok = 1 }
-    in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spidev = 0 }
-    in_spi && !in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spi = 0 }
-    /^&usbdrd_dwc3[[:space:]]*\{/ { in_usb = 1 }
-    in_usb && /dr_mode[[:space:]]*=[[:space:]]*"host";/ { usb_ok = 1 }
-    in_usb && /^[[:space:]]*};[[:space:]]*$/ { in_usb = 0 }
-    END { exit !(fiq_ok && spi_ok && spidev_ok && usb_ok) }
-  ' "${dts_path}" || fail "Failed to apply SPI/USB DTS patch to ${dts_path}"
-  printf 'Patched DTS: %s\n' "${dts_path}"
-}
-
-patch_sdk_board_include() {
-  include_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/rv1106-luckfox-pico-pi-ipc.dtsi"
-  [ -f "${include_path}" ] || return 0
-
+  cp "${vendor_dtsi_path}" "${custom_dtsi_path}"
   tmp_file=$(mktemp)
   awk '
     function indent_of(line,   out) {
@@ -377,8 +301,76 @@ patch_sdk_board_include() {
 
       print
     }
-  ' "${include_path}" > "${tmp_file}"
-  mv "${tmp_file}" "${include_path}"
+  ' "${custom_dtsi_path}" > "${tmp_file}"
+  mv "${tmp_file}" "${custom_dtsi_path}"
+
+  cp "${vendor_dts_path}" "${custom_dts_path}"
+  tmp_file=$(mktemp)
+  awk -v custom_include="${custom_dtsi_name}" '
+    function indent_of(line,   out) {
+      match(line, /^[[:space:]]*/)
+      out = substr(line, 1, RLENGTH)
+      return out
+    }
+
+    {
+      if ($0 ~ /^#include "rv1106-luckfox-pico-pi-ipc\.dtsi"$/) {
+        print "#include \"" custom_include "\""
+        next
+      }
+
+      if ($0 ~ /^&fiq_debugger[[:space:]]*\{/) {
+        in_fiq = 1
+      }
+      if (in_fiq && $0 ~ /^[[:space:]]*status[[:space:]]*=[[:space:]]*"okay";/) {
+        sub(/"okay"/, "\"disabled\"")
+      }
+
+      if ($0 ~ /^&spi0[[:space:]]*\{/) {
+        in_spi = 1
+      }
+      if (in_spi && $0 ~ /^[[:space:]]*status[[:space:]]*=[[:space:]]*"disabled";/) {
+        sub(/"disabled"/, "\"okay\"")
+      }
+      if (in_spi && $0 ~ /^[[:space:]]*spidev@0[[:space:]]*\{/) {
+        in_spidev = 1
+        spidev_indent = indent_of($0) "    "
+        spidev_has_status = 0
+      }
+      if (in_spidev && $0 ~ /^[[:space:]]*status[[:space:]]*=/) {
+        spidev_has_status = 1
+      }
+      if (in_spidev && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        if (!spidev_has_status) {
+          print spidev_indent "status = \"okay\";"
+        }
+        in_spidev = 0
+      }
+
+      print
+
+      if (in_fiq && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        in_fiq = 0
+      }
+      if (in_spi && !in_spidev && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        in_spi = 0
+      }
+    }
+  ' "${custom_dts_path}" > "${tmp_file}"
+  mv "${tmp_file}" "${custom_dts_path}"
+
+  awk '
+    /^&fiq_debugger[[:space:]]*\{/ { in_fiq = 1 }
+    in_fiq && /status[[:space:]]*=[[:space:]]*"disabled";/ { fiq_ok = 1 }
+    in_fiq && /^[[:space:]]*};[[:space:]]*$/ { in_fiq = 0 }
+    /^&spi0[[:space:]]*\{/ { in_spi = 1 }
+    in_spi && /status[[:space:]]*=[[:space:]]*"okay";/ { spi_ok = 1 }
+    in_spi && /spidev@0[[:space:]]*\{/ { in_spidev = 1 }
+    in_spidev && /status[[:space:]]*=[[:space:]]*"okay";/ { spidev_ok = 1 }
+    in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spidev = 0 }
+    in_spi && !in_spidev && /^[[:space:]]*};[[:space:]]*$/ { in_spi = 0 }
+    END { exit !(fiq_ok && spi_ok && spidev_ok) }
+  ' "${custom_dts_path}" || fail "Failed to generate custom PiMesh DTS: ${custom_dts_path}"
 
   awk '
     /bootargs = "/ {
@@ -391,8 +383,11 @@ patch_sdk_board_include() {
     in_i2c && /status[[:space:]]*=[[:space:]]*"okay";/ { i2c_ok++ ; in_i2c = 0 }
     in_i2c && /^[[:space:]]*};[[:space:]]*$/ { in_i2c = 0 }
     END { exit !(bootargs_ok && seen_i2c >= 4 && i2c_ok >= 4) }
-  ' "${include_path}" || fail "Failed to patch board include for I2C/serial in ${include_path}"
-  printf 'Patched board include: %s\n' "${include_path}"
+  ' "${custom_dtsi_path}" || fail "Failed to generate custom PiMesh DTS include: ${custom_dtsi_path}"
+
+  printf '\nexport RK_KERNEL_DTS="%s"\n' "${custom_dts_name}" >> "${SDK_GENERATED_BOARD_CONFIG}"
+  printf 'Custom DTS: %s\n' "${custom_dts_path}"
+  printf 'Custom DTS include: %s\n' "${custom_dtsi_path}"
 }
 
 sync_sdk_repo() {
@@ -437,6 +432,7 @@ SDK_WORK_DIR="${SDK_WORK_DIR:-${REPO_ROOT}/build/.work/luckfox-pico}"
 BOARD_CONFIG_REL="${BOARD_CONFIG_REL:-project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk}"
 SDK_DIR="${1:-${SDK_WORK_DIR}}"
 BOARD_CONFIG_PATH="${SDK_DIR}/${BOARD_CONFIG_REL}"
+BOARD_CONFIG_SOURCE_PATH="${BOARD_CONFIG_PATH}"
 SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
 SDK_GENERATED_BOARD_CONFIG="${SDK_DIR}/config/pymc_board_config.mk"
 SDK_BUILDROOT_DEFCONFIG="${SDK_DIR}/config/buildroot_defconfig"
@@ -467,6 +463,7 @@ stage "Selecting Luckfox board config"
 mkdir -p "${SDK_DIR}/config"
 cat "${BOARD_CONFIG_PATH}" > "${SDK_GENERATED_BOARD_CONFIG}"
 printf '\nexport RK_KERNEL_DEFCONFIG_FRAGMENT="${RK_KERNEL_DEFCONFIG_FRAGMENT} %s"\n' "${SDK_KERNEL_FRAGMENT_NAME}" >> "${SDK_GENERATED_BOARD_CONFIG}"
+BOARD_CONFIG_SOURCE_PATH="${SDK_GENERATED_BOARD_CONFIG}"
 ln -snf "${SDK_GENERATED_BOARD_CONFIG}" "${SDK_BOARD_CONFIG_LINK}"
 printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
 printf 'Generated board config: %s\n' "${SDK_GENERATED_BOARD_CONFIG}"
@@ -475,9 +472,8 @@ stage "Installing tailscale-ready kernel fragment"
 install -m 0644 "${KERNEL_FRAGMENT}" "${SDK_KERNEL_FRAGMENT_PATH}"
 printf 'Kernel fragment: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
 
-stage "Patching Luckfox DTS for SPI and USB host"
-patch_sdk_dts
-patch_sdk_board_include
+stage "Generating custom PiMesh DTS profile"
+prepare_custom_pimesh_dts
 
 stage "Linking SDK kernel configuration"
 link_sdk_config_files

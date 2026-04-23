@@ -6,7 +6,33 @@ EXTERNAL_DIR="${BR2_EXTERNAL_YELLOWCOOLN_PATH:?missing BR2_EXTERNAL_YELLOWCOOLN_
 APP_DIR="${TARGET_DIR}/opt/pymc-repeater-buildroot"
 ROOT_PASSWORD_HASH='$1$dXmV8ZLO$eNAQzSYOgRkYMJRdsHwLS1'
 SDK_DIR=$(CDPATH= cd -- "${TARGET_DIR}/../../../../../.." && pwd)
-LUCKFOX_CONFIG_OVERLAY="${SDK_DIR}/project/cfg/BoardConfig_IPC/overlay/overlay-luckfox-config"
+SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
+SDK_OVERLAY_DIR="${SDK_DIR}/project/cfg/BoardConfig_IPC/overlay"
+
+restore_vendor_overlays() {
+  [ -f "${SDK_BOARD_CONFIG_LINK}" ] || {
+    printf '%s\n' "Missing SDK board config link: ${SDK_BOARD_CONFIG_LINK}" >&2
+    exit 1
+  }
+  [ -d "${SDK_OVERLAY_DIR}" ] || {
+    printf '%s\n' "Missing SDK overlay directory: ${SDK_OVERLAY_DIR}" >&2
+    exit 1
+  }
+
+  # shellcheck disable=SC1090
+  . "${SDK_BOARD_CONFIG_LINK}"
+
+  for overlay_name in ${RK_POST_OVERLAY:-}; do
+    overlay_path="${SDK_OVERLAY_DIR}/${overlay_name}"
+    [ -d "${overlay_path}" ] || {
+      printf '%s\n' "Missing vendor overlay: ${overlay_path}" >&2
+      exit 1
+    }
+    cp -a "${overlay_path}/." "${TARGET_DIR}/"
+  done
+}
+
+restore_vendor_overlays
 
 mkdir -p "${APP_DIR}"
 
@@ -15,19 +41,16 @@ install -m 0755 "${EXTERNAL_DIR}/tailscale-manage.sh" "${APP_DIR}/tailscale-mana
 install -m 0644 "${EXTERNAL_DIR}/README.md" "${APP_DIR}/README.md"
 install -m 0644 "${EXTERNAL_DIR}/BUILDROOT.md" "${APP_DIR}/BUILDROOT.md"
 
-# Our Buildroot overlay replaces the vendor overlay path, so copy the
-# stock luckfox-config files back into the final rootfs explicitly.
-[ -d "${LUCKFOX_CONFIG_OVERLAY}" ] || {
-  printf '%s\n' "Missing vendor luckfox-config overlay: ${LUCKFOX_CONFIG_OVERLAY}" >&2
-  exit 1
-}
-cp -a "${LUCKFOX_CONFIG_OVERLAY}/." "${TARGET_DIR}/"
-
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
 
 mkdir -p "${TARGET_DIR}/var/empty"
 chmod 0755 "${TARGET_DIR}/var/empty"
+
+if [ ! -x "${TARGET_DIR}/usr/bin/luckfox-config" ]; then
+  printf '%s\n' "Vendor overlay chain did not restore /usr/bin/luckfox-config" >&2
+  exit 1
+fi
 
 # Force the final image to ship with a known SSH login even if vendor overlays
 # replace Buildroot's generated shadow file earlier in the SDK pipeline.
