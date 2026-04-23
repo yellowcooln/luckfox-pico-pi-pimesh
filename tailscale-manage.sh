@@ -220,6 +220,7 @@ install_tailscale() {
   ensure_root
   need_cmd tar
   need_cmd sha256sum
+  need_cmd gzip
   arch=$(detect_arch)
   version=$(resolve_version "$arch")
   [ -n "$version" ] || fail "Could not resolve Tailscale version for arch ${arch}"
@@ -240,7 +241,7 @@ install_tailscale() {
   mkdir -p "$INSTALL_BASE" "$STATE_DIR" "$LOG_DIR" "$RUN_DIR/tailscale"
   rm -rf "$target_dir"
   mkdir -p "$target_dir"
-  tar xzvf "${tmpdir}/${archive}" -C "$target_dir" --strip-components=1 >/dev/null
+  gzip -dc "${tmpdir}/${archive}" | tar xvf - -C "$target_dir" --strip-components=1 >/dev/null
   ln -snf "$target_dir" "${INSTALL_BASE}/current"
   ln -snf "$(tailscale_bin)" /usr/local/bin/tailscale
   ln -snf "$(tailscaled_bin)" /usr/local/bin/tailscaled
