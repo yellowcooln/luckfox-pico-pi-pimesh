@@ -224,6 +224,33 @@ check_sdk_layout() {
   printf 'Check [OK]: %s\n' "${SDK_DIR}/config/dts_config"
 }
 
+reset_cached_python_state() {
+  buildroot_src_dir="${SDK_DIR}/sysdrv/source/buildroot"
+  buildroot_tree=$(find "${buildroot_src_dir}" -maxdepth 1 -mindepth 1 -type d -name 'buildroot-*' | head -n 1 || true)
+  [ -n "${buildroot_tree}" ] || return 0
+
+  buildroot_output_dir="${buildroot_tree}/output"
+  [ -d "${buildroot_output_dir}" ] || return 0
+
+  stage "Resetting cached target Python state"
+
+  find "${buildroot_output_dir}/build" -maxdepth 1 -mindepth 1 -type d \
+    \( -name 'python-*' -o -name 'python3-*' \) \
+    ! -name 'host-python*' \
+    -exec rm -rf {} +
+
+  for python_root in "${buildroot_output_dir}/target/usr/lib" "${buildroot_output_dir}/staging/usr/lib"; do
+    [ -d "${python_root}" ] || continue
+    find "${python_root}" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | while IFS= read -r python_dir; do
+      rm -rf "${python_dir}/site-packages" "${python_dir}/lib-dynload"
+    done
+  done
+
+  rm -f \
+    "${buildroot_output_dir}/build/packages-file-list.txt" \
+    "${buildroot_output_dir}/build/packages-file-list-staging.txt"
+}
+
 patch_sdk_dts() {
   kernel_dts=$(board_var_or_default RK_KERNEL_DTS)
   dts_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/${kernel_dts}"
@@ -450,6 +477,7 @@ printf 'Merged defconfig: %s\n' "${SDK_BUILDROOT_DEFCONFIG}"
 stage "Validating SDK environment"
 check_host_deps
 check_sdk_layout
+reset_cached_python_state
 (
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
