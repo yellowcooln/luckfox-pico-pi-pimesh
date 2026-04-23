@@ -8,7 +8,6 @@ Goals:
 - `git` present on-device
 - Python 3 present with the MeshCore runtime dependencies built into the image
 - the normal Luckfox/Buildroot init and networking stack
-- enough compatibility wrappers for the Buildroot install flow to run without pretending the whole image is Debian
 - pyMC Repeater helper files preloaded at `/opt/pymc-repeater-buildroot`
 - convenience symlink at `/root/pymc-repeater-buildroot`
 
@@ -70,7 +69,6 @@ The post-build script copies these into the target rootfs:
 - `/opt/pymc-repeater-buildroot/buildroot-manage.sh`
 - `/opt/pymc-repeater-buildroot/README.md`
 - `/opt/pymc-repeater-buildroot/BUILDROOT.md`
-- `/opt/pymc-repeater-buildroot/shims/*`
 It also creates:
 
 - `/root/pymc-repeater-buildroot -> /opt/pymc-repeater-buildroot`

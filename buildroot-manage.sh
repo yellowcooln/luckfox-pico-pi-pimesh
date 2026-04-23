@@ -2,7 +2,6 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-SHIM_DIR="${SCRIPT_DIR}/shims"
 API_HOST="${API_HOST:-127.0.0.1}"
 API_PORT="${API_PORT:-8000}"
 
@@ -115,7 +114,6 @@ run_repo_manage() {
   fi
 
   exec env \
-    PATH="${SHIM_DIR}:${PATH}" \
     TERM="${TERM:-xterm}" \
     PYMC_SILENT="${PYMC_SILENT:-1}" \
     bash "${PYMC_REPEATER_DIR}/manage.sh" "${action}" "$@"
@@ -177,12 +175,8 @@ PY
 
   if [ -f "${PYMC_REPEATER_DIR}/buildroot-manage.sh" ]; then
     info "repo Buildroot helper present at ${PYMC_REPEATER_DIR}/buildroot-manage.sh"
-    info "legacy PATH shims are not used for the dedicated Buildroot flow"
   elif [ -f "${PYMC_REPEATER_DIR}/manage.sh" ]; then
     info "repo checkout present at ${PYMC_REPEATER_DIR}"
-    if [ -d "${SHIM_DIR}" ]; then
-      info "legacy shims remain available only for stock manage.sh fallback"
-    fi
   else
     info "repo checkout not present yet; install will clone it to ${PYMC_REPEATER_DIR}"
   fi

@@ -3,8 +3,7 @@
 This repo packages a Buildroot-friendly `pyMC_Repeater` setup for a Luckfox Pico Pi, aimed at the upstream `pyMC_Repeater` `dev` branch and not tied to a single radio model.
 
 The shipped image is a normal Buildroot appliance using the Luckfox vendor init
-and networking stack. It keeps a small compatibility layer for the few
-Debian-oriented commands that `pyMC_Repeater` install logic still assumes.
+and networking stack.
 
 The image-side helper in `/root/pymc-repeater-buildroot` is only a
 bootstrap/proxy. It clones `pyMC_Repeater` into the current user's home

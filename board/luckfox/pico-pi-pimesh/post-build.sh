@@ -7,15 +7,11 @@ APP_DIR="${TARGET_DIR}/opt/pymc-repeater-buildroot"
 ROOT_PASSWORD_HASH='$1$dXmV8ZLO$eNAQzSYOgRkYMJRdsHwLS1'
 
 mkdir -p "${APP_DIR}"
-mkdir -p "${APP_DIR}/shims"
 
 install -m 0755 "${EXTERNAL_DIR}/buildroot-manage.sh" "${APP_DIR}/buildroot-manage.sh"
 install -m 0755 "${EXTERNAL_DIR}/tailscale-manage.sh" "${APP_DIR}/tailscale-manage.sh"
 install -m 0644 "${EXTERNAL_DIR}/README.md" "${APP_DIR}/README.md"
 install -m 0644 "${EXTERNAL_DIR}/BUILDROOT.md" "${APP_DIR}/BUILDROOT.md"
-for shim in apt-get getent pip useradd usermod; do
-  install -m 0755 "${EXTERNAL_DIR}/shims/${shim}" "${APP_DIR}/shims/${shim}"
-done
 
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
