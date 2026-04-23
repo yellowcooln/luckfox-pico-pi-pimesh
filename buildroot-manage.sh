@@ -74,9 +74,9 @@ prompt_choice() {
   fi
 
   if [ -n "${default_answer}" ]; then
-    printf '%s [%s]: ' "${prompt_text}" "${default_answer}"
+    printf '%s [%s]: ' "${prompt_text}" "${default_answer}" >&2
   else
-    printf '%s: ' "${prompt_text}"
+    printf '%s: ' "${prompt_text}" >&2
   fi
   IFS= read -r answer
   if [ -z "${answer}" ]; then
