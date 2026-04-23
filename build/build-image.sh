@@ -294,6 +294,61 @@ patch_sdk_dts() {
   printf 'Patched DTS: %s\n' "${dts_path}"
 }
 
+patch_sdk_board_include() {
+  include_path="${SDK_DIR}/sysdrv/source/kernel/arch/arm/boot/dts/rv1106-luckfox-pico-pi-ipc.dtsi"
+  [ -f "${include_path}" ] || return 0
+
+  tmp_file=$(mktemp)
+  awk '
+    function indent_of(line,   out) {
+      match(line, /^[[:space:]]*/)
+      out = substr(line, 1, RLENGTH)
+      return out
+    }
+
+    {
+      if ($0 ~ /bootargs = "/) {
+        gsub(/earlycon=uart8250,mmio32,0xff4c0000[[:space:]]*/, "")
+        gsub(/console=ttyFIQ0[[:space:]]*/, "")
+        gsub(/  +/, " ")
+        gsub(/ root=/, " root=")
+      }
+
+      if ($0 ~ /^&i2c[1-4][[:space:]]*\{/) {
+        in_i2c = 1
+        i2c_indent = indent_of($0) "    "
+        i2c_has_status = 0
+      }
+      if (in_i2c && $0 ~ /^[[:space:]]*status[[:space:]]*=/) {
+        i2c_has_status = 1
+      }
+      if (in_i2c && $0 ~ /^[[:space:]]*};[[:space:]]*$/) {
+        if (!i2c_has_status) {
+          print i2c_indent "status = \"okay\";"
+        }
+        in_i2c = 0
+      }
+
+      print
+    }
+  ' "${include_path}" > "${tmp_file}"
+  mv "${tmp_file}" "${include_path}"
+
+  awk '
+    /bootargs = "/ {
+      if ($0 ~ /console=ttyFIQ0/ || $0 ~ /earlycon=uart8250,mmio32,0xff4c0000/) {
+        exit 1
+      }
+      bootargs_ok = 1
+    }
+    /^&i2c[1-4][[:space:]]*\{/ { in_i2c = 1; seen_i2c++ }
+    in_i2c && /status[[:space:]]*=[[:space:]]*"okay";/ { i2c_ok++ ; in_i2c = 0 }
+    in_i2c && /^[[:space:]]*};[[:space:]]*$/ { in_i2c = 0 }
+    END { exit !(bootargs_ok && seen_i2c >= 4 && i2c_ok >= 4) }
+  ' "${include_path}" || fail "Failed to patch board include for I2C/serial in ${include_path}"
+  printf 'Patched board include: %s\n' "${include_path}"
+}
+
 sync_sdk_repo() {
   repo_url=$1
   repo_ref=$2
@@ -376,6 +431,7 @@ printf 'Kernel fragment: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
 
 stage "Patching Luckfox DTS for SPI"
 patch_sdk_dts
+patch_sdk_board_include
 
 stage "Linking SDK kernel configuration"
 link_sdk_config_files
