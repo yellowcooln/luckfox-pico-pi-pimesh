@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_JARACO_COLLECTIONS
+	bool "python-jaraco-collections"
+	select BR2_PACKAGE_PYTHON_JARACO_TEXT
+	help
+	  Collection helpers used by CherryPy.
+
+	  https://pypi.org/project/jaraco.collections/

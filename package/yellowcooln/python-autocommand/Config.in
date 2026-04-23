@@ -1,0 +1,6 @@
+config BR2_PACKAGE_PYTHON_AUTOCOMMAND
+	bool "python-autocommand"
+	help
+	  Autocommand support helpers for Python packages.
+
+	  https://pypi.org/project/autocommand/

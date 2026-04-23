@@ -1,4 +1,8 @@
 source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-httpagentparser/Config.in"
 source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-cherrypy-cors/Config.in"
+source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-autocommand/Config.in"
+source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-jaraco-context/Config.in"
+source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-jaraco-text/Config.in"
+source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-jaraco-collections/Config.in"
 source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-pyserial/Config.in"
 source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/python-pycryptodome/Config.in"

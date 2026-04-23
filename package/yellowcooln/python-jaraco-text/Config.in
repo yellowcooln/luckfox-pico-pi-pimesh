@@ -1,0 +1,10 @@
+config BR2_PACKAGE_PYTHON_JARACO_TEXT
+	bool "python-jaraco-text"
+	select BR2_PACKAGE_PYTHON_AUTOCOMMAND
+	select BR2_PACKAGE_PYTHON_JARACO_CONTEXT
+	select BR2_PACKAGE_PYTHON_JARACO_FUNCTOOLS
+	select BR2_PACKAGE_PYTHON_MORE_ITERTOOLS
+	help
+	  Text helpers used by jaraco.collections.
+
+	  https://pypi.org/project/jaraco.text/
