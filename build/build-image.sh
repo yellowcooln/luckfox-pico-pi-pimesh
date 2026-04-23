@@ -34,6 +34,10 @@ Environment:
                      Default: <repo>/build/luckfox_pico_pi_tailscale_kernel.fragment
   AUTO_ZIP           Set to 1 to always zip the image output into <repo>/build.
                      Set to 0 to skip zipping without prompting.
+  RK_JOBS            Parallel build job count for the Luckfox SDK build.
+                     Default: detected via nproc/getconf, else 1.
+  RESET_PYTHON_STATE Set to 1 to clear cached target Python build/output state.
+                     Default: 0
   SKIP_BUILD         Set to 1 to stop after check/info validation.
 EOF
 }
@@ -226,6 +230,10 @@ check_sdk_layout() {
 }
 
 reset_cached_python_state() {
+  if [ "${RESET_PYTHON_STATE:-0}" != "1" ]; then
+    return 0
+  fi
+
   buildroot_src_dir="${SDK_DIR}/sysdrv/source/buildroot"
   buildroot_tree=$(find "${buildroot_src_dir}" -maxdepth 1 -mindepth 1 -type d -name 'buildroot-*' | head -n 1 || true)
   [ -n "${buildroot_tree}" ] || return 0
@@ -250,6 +258,22 @@ reset_cached_python_state() {
   rm -f \
     "${buildroot_output_dir}/build/packages-file-list.txt" \
     "${buildroot_output_dir}/build/packages-file-list-staging.txt"
+}
+
+detect_job_count() {
+  if [ -n "${RK_JOBS:-}" ]; then
+    printf '%s\n' "${RK_JOBS}"
+    return 0
+  fi
+  if command -v nproc >/dev/null 2>&1; then
+    nproc
+    return 0
+  fi
+  if command -v getconf >/dev/null 2>&1; then
+    getconf _NPROCESSORS_ONLN
+    return 0
+  fi
+  printf '%s\n' 1
 }
 
 prepare_custom_pimesh_dts() {
@@ -493,14 +517,30 @@ stage "Validating SDK environment"
 check_host_deps
 check_sdk_layout
 reset_cached_python_state
+RK_JOBS_VALUE=$(detect_job_count)
+case "${RK_JOBS_VALUE}" in
+  ''|*[!0-9]*)
+    fail "Invalid RK_JOBS value: ${RK_JOBS_VALUE}"
+    ;;
+esac
+if [ "${RK_JOBS_VALUE}" -lt 1 ]; then
+  RK_JOBS_VALUE=1
+fi
 (
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
   export PATH="${TOOLCHAIN_BIN}:${PATH}"
+  export RK_JOBS="${RK_JOBS_VALUE}"
   printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
   printf 'Buildroot defconfig: %s\n' "${BASE_DEFCONFIG}"
   printf 'Buildroot fragment: %s\n' "${FRAGMENT}"
   printf 'Kernel fragment: %s\n' "${KERNEL_FRAGMENT}"
+  printf 'RK_JOBS: %s\n' "${RK_JOBS}"
+  if [ "${RESET_PYTHON_STATE:-0}" = "1" ]; then
+    printf 'Reset target Python state: yes\n'
+  else
+    printf 'Reset target Python state: no\n'
+  fi
 )
 
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
@@ -514,6 +554,7 @@ stage "Building Luckfox image"
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
   export PATH="${TOOLCHAIN_BIN}:${PATH}"
+  export RK_JOBS="${RK_JOBS_VALUE}"
   ./build.sh
   ./build.sh firmware
 )
