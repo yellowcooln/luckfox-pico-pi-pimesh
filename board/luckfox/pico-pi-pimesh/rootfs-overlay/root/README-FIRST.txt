@@ -10,6 +10,11 @@ Helper files are preloaded at:
 Convenience symlink:
   /root/pymc-repeater-buildroot
 
+This image boots with:
+  real systemd
+  systemd-networkd
+  systemd-resolved
+
 Expected first steps after flashing:
   cd /root/pymc-repeater-buildroot
   sh buildroot-manage.sh doctor

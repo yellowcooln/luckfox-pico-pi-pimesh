@@ -12,12 +12,21 @@ mkdir -p "${APP_DIR}/shims"
 install -m 0755 "${EXTERNAL_DIR}/buildroot-manage.sh" "${APP_DIR}/buildroot-manage.sh"
 install -m 0644 "${EXTERNAL_DIR}/README.md" "${APP_DIR}/README.md"
 install -m 0644 "${EXTERNAL_DIR}/BUILDROOT.md" "${APP_DIR}/BUILDROOT.md"
-for shim in apt-get getent journalctl pip pkaction systemctl useradd usermod; do
+for shim in apt-get getent pip useradd usermod; do
   install -m 0755 "${EXTERNAL_DIR}/shims/${shim}" "${APP_DIR}/shims/${shim}"
 done
 
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
+
+mkdir -p "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants"
+ln -snf /usr/lib/systemd/system/systemd-networkd.service \
+  "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
+ln -snf /usr/lib/systemd/system/systemd-resolved.service \
+  "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants/systemd-resolved.service"
+ln -snf /usr/lib/systemd/system/sshd.service \
+  "${TARGET_DIR}/etc/systemd/system/multi-user.target.wants/sshd.service"
+ln -snf ../run/systemd/resolve/stub-resolv.conf "${TARGET_DIR}/etc/resolv.conf"
 
 mkdir -p "${TARGET_DIR}/var/empty"
 chmod 0755 "${TARGET_DIR}/var/empty"

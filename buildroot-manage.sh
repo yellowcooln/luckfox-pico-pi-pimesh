@@ -18,7 +18,9 @@ Usage: sh buildroot-manage.sh <command>
 
 This script is only a Buildroot image bootstrap/proxy. It clones stock upstream
 pyMC_Repeater into the current user's home directory and then hands off to the
-repo's own manage.sh.
+repo's own manage.sh. The image now provides real systemd/journalctl; the only
+compatibility wrappers left are for apt-get, pip, and account-management tools
+that upstream manage.sh assumes are present on Debian-like systems.
 
 Commands:
   doctor      Check image prerequisites for upstream pyMC install
@@ -120,11 +122,19 @@ doctor() {
     fi
   done
 
-  for shim in apt-get getent journalctl pkaction pip systemctl useradd usermod; do
+  for shim in apt-get getent pip useradd usermod; do
     if [ -x "${SHIM_DIR}/${shim}" ]; then
       info "shim ready: ${shim}"
     else
       warn "missing shim: ${shim}"
+    fi
+  done
+
+  for cmd in systemctl journalctl pkaction; do
+    if command -v "${cmd}" >/dev/null 2>&1; then
+      info "found ${cmd}"
+    else
+      warn "missing ${cmd}"
     fi
   done
 
