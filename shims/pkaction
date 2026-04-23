@@ -1,9 +1,0 @@
-#!/bin/sh
-set -eu
-
-if [ "${1:-}" = "--version" ]; then
-  echo "pkaction version 0.106"
-  exit 0
-fi
-
-exit 0
