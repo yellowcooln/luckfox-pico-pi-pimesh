@@ -24,6 +24,12 @@ Expected first steps after flashing:
 If you want to watch the repeater log:
   sh buildroot-manage.sh logs
 
+Tailscale helper:
+  cd /root/pymc-repeater-buildroot
+  sh tailscale-manage.sh install
+  sh tailscale-manage.sh start
+  sh tailscale-manage.sh up
+
 The wrapper clones stock upstream pyMC_Repeater to:
   /root/pyMC_Repeater
 
