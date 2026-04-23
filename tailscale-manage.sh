@@ -240,7 +240,7 @@ install_tailscale() {
   mkdir -p "$INSTALL_BASE" "$STATE_DIR" "$LOG_DIR" "$RUN_DIR/tailscale"
   rm -rf "$target_dir"
   mkdir -p "$target_dir"
-  tar xvf "${tmpdir}/${archive}" -C "$target_dir" --strip-components=1 >/dev/null
+  tar xzvf "${tmpdir}/${archive}" -C "$target_dir" --strip-components=1 >/dev/null
   ln -snf "$target_dir" "${INSTALL_BASE}/current"
   ln -snf "$(tailscale_bin)" /usr/local/bin/tailscale
   ln -snf "$(tailscaled_bin)" /usr/local/bin/tailscaled
