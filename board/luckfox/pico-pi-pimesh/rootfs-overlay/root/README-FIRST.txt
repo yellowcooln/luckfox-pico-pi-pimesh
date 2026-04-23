@@ -24,6 +24,13 @@ Expected first steps after flashing:
 If you want to watch the repeater log:
   sh buildroot-manage.sh logs
 
+After install, the image helper now asks which Luckfox radio profile you have:
+  1) PiMesh V2
+  2) PiMesh V1 / MeshAdv
+
+You can rerun that later with:
+  sh buildroot-manage.sh radio-profile
+
 Tailscale helper:
   cd /root/pymc-repeater-buildroot
   sh tailscale-manage.sh install

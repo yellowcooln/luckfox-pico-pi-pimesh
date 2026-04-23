@@ -50,7 +50,7 @@ sh buildroot-manage.sh advert
 What this does:
 
 - `doctor` checks the image baseline needed by the Buildroot install flow
-- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater` and hands off to the repo's own `buildroot-manage.sh install`
+- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater`, hands off to the repo's own `buildroot-manage.sh install`, then asks which Luckfox radio profile to apply
 - `start` proxies to the repo's Buildroot service wrapper
 - `wait-ready` waits for the local API to come up
 - `advert` runs the known-good `pymc-cli advert` test path
@@ -98,6 +98,7 @@ Main commands:
 
 - `install`
 - `upgrade`
+- `radio-profile`
 - `config`
 - `doctor`
 - `start`
@@ -113,11 +114,18 @@ Main commands:
 
 ## Radio Selection
 
-`buildroot-manage.sh` does not force any radio hardware or board profile.
+The image helper now supports Luckfox-specific radio profile selection after install.
 
-That matches the direction of `pyMC_Repeater/manage.sh`: install the app and let repeater-side config choose the hardware during setup.
+Current choices:
 
-The intent here is to keep the Buildroot side generic and stock, then let `pyMC_Repeater` ask for the radio during its own configuration flow.
+- `PiMesh V2`
+- `PiMesh V1 / MeshAdv`
+
+You can reapply that later with:
+
+```sh
+sh buildroot-manage.sh radio-profile
+```
 
 ## Runtime Notes
 

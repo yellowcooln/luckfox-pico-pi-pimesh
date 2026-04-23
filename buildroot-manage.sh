@@ -29,6 +29,8 @@ Commands:
   doctor      Check image prerequisites for upstream pyMC install
   install     Clone/update ~/pyMC_Repeater and run the repo install flow
   upgrade     Refresh ~/pyMC_Repeater and run the repo upgrade flow
+  radio-profile
+              Apply Luckfox radio pin mapping to /etc/pymc_repeater/config.yaml
   config      Run the repo config flow
   start       Run the repo service start flow
   stop        Run the repo service stop flow
@@ -59,6 +61,28 @@ warn() {
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
+}
+
+prompt_choice() {
+  prompt_text=$1
+  default_answer=${2:-}
+  answer=""
+
+  if [ ! -t 0 ]; then
+    printf '%s' "${default_answer}"
+    return 0
+  fi
+
+  if [ -n "${default_answer}" ]; then
+    printf '%s [%s]: ' "${prompt_text}" "${default_answer}"
+  else
+    printf '%s: ' "${prompt_text}"
+  fi
+  IFS= read -r answer
+  if [ -z "${answer}" ]; then
+    answer="${default_answer}"
+  fi
+  printf '%s' "${answer}"
 }
 
 need_cmd() {
@@ -107,16 +131,149 @@ run_repo_manage() {
   shift || true
   ensure_repo_present
   if [ -f "${PYMC_REPEATER_DIR}/buildroot-manage.sh" ]; then
-    exec env \
+    env \
       TERM="${TERM:-xterm}" \
       PYMC_SILENT="${PYMC_SILENT:-1}" \
       bash "${PYMC_REPEATER_DIR}/buildroot-manage.sh" "${action}" "$@"
+    return $?
   fi
 
-  exec env \
+  env \
     TERM="${TERM:-xterm}" \
     PYMC_SILENT="${PYMC_SILENT:-1}" \
     bash "${PYMC_REPEATER_DIR}/manage.sh" "${action}" "$@"
+  return $?
+}
+
+normalize_radio_profile() {
+  profile=$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')
+  case "${profile}" in
+    1|v2|pimesh-v2|pimesh_1w_v2|pimesh-1w-v2)
+      printf '%s\n' 'pimesh-v2'
+      ;;
+    2|v1|pimesh-v1|pimesh_1w_v1|pimesh-1w-v1|meshadv|mesh-adv)
+      printf '%s\n' 'pimesh-v1'
+      ;;
+    3|skip|none|"")
+      printf '%s\n' 'skip'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+apply_luckfox_radio_profile() {
+  profile="${1:-}"
+  cfg="${PYMC_CONFIG_PATH:-/etc/pymc_repeater/config.yaml}"
+
+  [ -f "${cfg}" ] || fail "Missing pyMC config: ${cfg}"
+
+  case "${profile}" in
+    pimesh-v2)
+      stage "Applying Luckfox radio profile: PiMesh V2"
+      sx1262_block=$(cat <<'EOF'
+sx1262:
+  bus_id: 0
+  busy_pin: 122
+  cs_id: 0
+  cs_pin: -1
+  dio3_tcxo_voltage: 1.8
+  en_pin: 0
+  irq_pin: 121
+  is_waveshare: false
+  reset_pin: 54
+  rxen_pin: -1
+  rxled_pin: -1
+  txen_pin: -1
+  txled_pin: -1
+  use_dio2_rf: true
+  use_dio3_tcxo: true
+EOF
+)
+      ;;
+    pimesh-v1)
+      stage "Applying Luckfox radio profile: PiMesh V1 / MeshAdv"
+      sx1262_block=$(cat <<'EOF'
+sx1262:
+  bus_id: 0
+  busy_pin: 123
+  cs_id: 0
+  cs_pin: 145
+  dio3_tcxo_voltage: 1.8
+  en_pin: -1
+  irq_pin: 55
+  is_waveshare: false
+  reset_pin: 54
+  rxen_pin: 53
+  rxled_pin: -1
+  txen_pin: 52
+  txled_pin: -1
+  use_dio2_rf: false
+  use_dio3_tcxo: true
+EOF
+)
+      ;;
+    skip)
+      info "skipping radio pin update"
+      return 0
+      ;;
+    *)
+      fail "Unknown radio profile: ${profile}"
+      ;;
+  esac
+
+  cp "${cfg}" "${cfg}.bak-$(date +%Y%m%d-%H%M%S)"
+  PYMC_CONFIG_PATH="${cfg}" SX1262_BLOCK="${sx1262_block}" "${PYTHON_BIN}" - <<'PY'
+from pathlib import Path
+import os
+
+path = Path(os.environ["PYMC_CONFIG_PATH"])
+block = os.environ["SX1262_BLOCK"].rstrip("\n") + "\n"
+text = path.read_text()
+
+if "sx1262:\n" in text:
+    start = text.index("sx1262:\n")
+    rest = text[start:]
+    lines = rest.splitlines(True)
+    end_offset = None
+    for i, line in enumerate(lines[1:], start=1):
+        if line and not line.startswith((" ", "\t")):
+            end_offset = sum(len(x) for x in lines[:i])
+            break
+    if end_offset is None:
+        end_offset = len(rest)
+    text = text[:start] + block + rest[end_offset:]
+else:
+    text = text.rstrip() + "\n\n" + block
+
+path.write_text(text)
+PY
+
+  info "updated ${cfg}"
+  grep -A20 '^sx1262:' "${cfg}" || true
+}
+
+choose_and_apply_radio_profile() {
+  if [ ! -f /etc/pymc_repeater/config.yaml ]; then
+    warn "pyMC config not found yet; skipping radio profile selection"
+    return 0
+  fi
+
+  selected="${LUCKFOX_RADIO_PROFILE:-}"
+  if [ -z "${selected}" ]; then
+    cat <<'EOF'
+
+Select Luckfox radio profile:
+  1) PiMesh V2
+  2) PiMesh V1 / MeshAdv
+  3) Skip for now
+EOF
+    selected=$(prompt_choice "Profile" "1")
+  fi
+
+  normalized=$(normalize_radio_profile "${selected}") || fail "Unknown radio profile choice: ${selected}"
+  apply_luckfox_radio_profile "${normalized}"
 }
 
 doctor() {
@@ -220,12 +377,22 @@ case "${cmd}" in
     clone_or_refresh_repo
     shift
     run_repo_manage install "$@"
+    choose_and_apply_radio_profile
     ;;
   upgrade)
     ensure_base_tools
     clone_or_refresh_repo
     shift
     run_repo_manage upgrade "$@"
+    ;;
+  radio-profile)
+    shift
+    if [ $# -gt 0 ]; then
+      normalized=$(normalize_radio_profile "$1") || fail "Unknown radio profile choice: $1"
+      apply_luckfox_radio_profile "${normalized}"
+    else
+      choose_and_apply_radio_profile
+    fi
     ;;
   config|start|stop|restart|status|logs|uninstall|debug)
     ensure_base_tools
