@@ -238,7 +238,7 @@ install_tailscale() {
   verify_checksum "${tmpdir}/${archive}" "${tmpdir}/${archive}.sha256"
 
   stage "Installing Tailscale ${version}"
-  mkdir -p "$INSTALL_BASE" "$STATE_DIR" "$LOG_DIR" "$RUN_DIR/tailscale"
+  mkdir -p "$INSTALL_BASE" "$STATE_DIR" "$LOG_DIR" "$RUN_DIR/tailscale" /usr/local/bin
   rm -rf "$target_dir"
   mkdir -p "$target_dir"
   gzip -dc "${tmpdir}/${archive}" | tar xvf - -C "$target_dir" --strip-components=1 >/dev/null
