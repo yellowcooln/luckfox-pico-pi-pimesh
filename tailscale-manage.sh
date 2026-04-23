@@ -58,9 +58,9 @@ detect_arch() {
 fetch_url() {
   url="$1"
   if command -v wget >/dev/null 2>&1; then
-    wget -qO- "$url"
+    wget -4 -qO- "$url"
   elif command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url"
+    curl -4 -fsSL "$url"
   else
     fail "Missing wget or curl"
   fi
@@ -70,12 +70,23 @@ download_file() {
   url="$1"
   dest="$2"
   if command -v wget >/dev/null 2>&1; then
-    wget -O "$dest" "$url"
+    wget -4 -O "$dest" "$url"
   elif command -v curl >/dev/null 2>&1; then
-    curl -fL "$url" -o "$dest"
+    curl -4 -fL "$url" -o "$dest"
   else
     fail "Missing wget or curl"
   fi
+}
+
+verify_checksum() {
+  archive_path="$1"
+  checksum_path="$2"
+
+  expected=$(tr -d ' \t\r\n' < "$checksum_path")
+  [ -n "$expected" ] || fail "Downloaded checksum file is empty."
+
+  actual=$(sha256sum "$archive_path" | awk '{print $1}')
+  [ "$actual" = "$expected" ] || fail "SHA256 checksum mismatch for $(basename "$archive_path")."
 }
 
 resolve_version() {
@@ -223,7 +234,7 @@ install_tailscale() {
   stage "Downloading Tailscale ${version}"
   download_file "$url" "${tmpdir}/${archive}"
   download_file "$checksum_url" "${tmpdir}/${archive}.sha256"
-  (cd "$tmpdir" && sha256sum -c "${archive}.sha256")
+  verify_checksum "${tmpdir}/${archive}" "${tmpdir}/${archive}.sha256"
 
   stage "Installing Tailscale ${version}"
   mkdir -p "$INSTALL_BASE" "$STATE_DIR" "$LOG_DIR" "$RUN_DIR/tailscale"
