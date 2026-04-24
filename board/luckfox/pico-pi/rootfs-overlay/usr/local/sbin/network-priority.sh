@@ -79,18 +79,33 @@ ensure_wifi_started() {
   /etc/init.d/S39wpa-client restart >/dev/null 2>&1 || true
 }
 
-normalize_default_routes() {
+trim_route_line() {
+  printf '%s\n' "$1" | sed -E 's/[[:space:]]+$//'
+}
+
+route_without_metric() {
+  trim_route_line "$1" | sed -E 's/ metric [0-9]+//g'
+}
+
+sync_default_routes() {
   local iface="$1"
   local metric="$2"
-  local line stripped
+  local routes first_line stripped desired line
 
-  ip route show default dev "$iface" 2>/dev/null | while IFS= read -r line; do
+  routes=$(ip route show default dev "$iface" 2>/dev/null || true)
+  [ -n "$routes" ] || return 0
+
+  first_line=$(printf '%s\n' "$routes" | sed -n '1p')
+  stripped=$(route_without_metric "$first_line")
+  desired=$(trim_route_line "$stripped metric $metric")
+
+  printf '%s\n' "$routes" | while IFS= read -r line; do
+    line=$(trim_route_line "$line")
     [ -n "$line" ] || continue
-    stripped=$(printf '%s\n' "$line" | sed -E 's/ metric [0-9]+//g')
-    if [ "$stripped metric $metric" != "$line" ]; then
-      ip route replace $stripped metric "$metric" >/dev/null 2>&1 || true
-    fi
+    ip route del $line >/dev/null 2>&1 || true
   done
+
+  ip route replace $desired >/dev/null 2>&1 || true
   return 0
 }
 
@@ -161,7 +176,7 @@ EOF
 
   metric="$first_metric"
   for iface in $active_ifaces; do
-    normalize_default_routes "$iface" "$metric"
+    sync_default_routes "$iface" "$metric"
     if [ "$metric" -eq "$first_metric" ]; then
       metric="$second_metric"
     elif [ "$metric" -eq "$second_metric" ]; then
@@ -177,7 +192,7 @@ EOF
     if iface_in_list "$iface" $active_ifaces; then
       continue
     fi
-    normalize_default_routes "$iface" "$inactive_metric"
+    sync_default_routes "$iface" "$inactive_metric"
   done
 }
 
