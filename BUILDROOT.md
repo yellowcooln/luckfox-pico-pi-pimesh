@@ -8,7 +8,7 @@ Goals:
 - `git` present on-device
 - Python 3 present with the MeshCore runtime dependencies built into the image
 - the normal Luckfox/Buildroot init and networking stack
-- pyMC Repeater helper files preloaded at `/opt/pymc-repeater-buildroot`
+- pyMC Repeater helper files preloaded at `/opt/scripts`
 - convenience symlink at `/root/scripts`
 
 ## What This Repo Adds
@@ -17,10 +17,10 @@ Goals:
   Buildroot external tree registration
 - `configs/luckfox_pico_pi_pimesh_packages.config`
   package/config fragment to merge into the vendor Luckfox Buildroot config
-- `board/luckfox/pico-pi-pimesh/rootfs-overlay`
+- `board/luckfox/pico-pi/rootfs-overlay`
   static files copied into the target rootfs
-- `board/luckfox/pico-pi-pimesh/post-build.sh`
-  copies this repo's runtime files into `/opt/pymc-repeater-buildroot` inside the image
+- `board/luckfox/pico-pi/post-build.sh`
+  copies this repo's runtime files into `/opt/scripts` inside the image
 - `package/yellowcooln/*`
   custom Buildroot Python packages for dependencies missing from upstream Buildroot
 
@@ -66,12 +66,12 @@ make olddefconfig
 
 The post-build script copies these into the target rootfs:
 
-- `/opt/pymc-repeater-buildroot/buildroot-manage.sh`
-- `/opt/pymc-repeater-buildroot/README.md`
-- `/opt/pymc-repeater-buildroot/BUILDROOT.md`
+- `/opt/scripts/buildroot-manage.sh`
+- `/opt/scripts/README.md`
+- `/opt/scripts/BUILDROOT.md`
 It also creates:
 
-- `/root/scripts -> /opt/pymc-repeater-buildroot`
+- `/root/scripts -> /opt/scripts`
 
 The intended user flow on a flashed image is:
 

@@ -5,7 +5,7 @@ Default login:
   password: luckfox
 
 Helper files are preloaded at:
-  /opt/pymc-repeater-buildroot
+  /opt/scripts
 
 Convenience symlink:
   /root/scripts

@@ -74,7 +74,7 @@ The image also ships with:
 
 The helper files are preloaded in the image at:
 
-- `/opt/pymc-repeater-buildroot`
+- `/opt/scripts`
 - `/root/scripts`
 
 The upstream repo checkout is expected to live at:

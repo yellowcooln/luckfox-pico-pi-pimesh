@@ -8,7 +8,7 @@ User-facing helper directory on the board:
 
 Backed by:
 
-- `/opt/pymc-repeater-buildroot`
+- `/opt/scripts`
 
 ## Main Scripts
 
