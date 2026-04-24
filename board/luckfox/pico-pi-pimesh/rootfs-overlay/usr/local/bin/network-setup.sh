@@ -4,7 +4,7 @@ set -eu
 CONFIG_FILE=${NETWORK_PRIORITY_CONFIG:-/etc/default/network-priority}
 WIFI_NETWORKS_FILE=${WIFI_NETWORKS_FILE:-/etc/network-priority.wifi}
 HELPER_DIR=${HELPER_DIR:-/opt/pymc-repeater-buildroot}
-NETWORK_PRIORITY_SH="${HELPER_DIR}/network-priority.sh"
+NETWORK_PRIORITY_SH="${NETWORK_PRIORITY_SH:-/usr/local/sbin/network-priority.sh}"
 WIFI_SETUP_SH="${HELPER_DIR}/wifi-setup.sh"
 
 info() {

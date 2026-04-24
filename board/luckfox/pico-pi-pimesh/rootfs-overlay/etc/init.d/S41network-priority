@@ -1,6 +1,6 @@
 #!/bin/sh
 
-DAEMON=/opt/pymc-repeater-buildroot/network-priority.sh
+DAEMON=/usr/local/sbin/network-priority.sh
 PIDFILE=/var/run/network-priority.pid
 
 start() {

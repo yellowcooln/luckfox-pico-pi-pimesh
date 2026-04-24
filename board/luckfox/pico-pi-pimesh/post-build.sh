@@ -41,14 +41,12 @@ install -m 0755 "${EXTERNAL_DIR}/buildroot-manage.sh" "${APP_DIR}/buildroot-mana
 install -m 0755 "${EXTERNAL_DIR}/tailscale-manage.sh" "${APP_DIR}/tailscale-manage.sh"
 install -m 0755 "${EXTERNAL_DIR}/board/luckfox/pico-pi-pimesh/rootfs-overlay/usr/local/bin/network-setup.sh" "${APP_DIR}/network-setup.sh"
 install -m 0755 "${EXTERNAL_DIR}/board/luckfox/pico-pi-pimesh/rootfs-overlay/usr/local/bin/wifi-setup.sh" "${APP_DIR}/wifi-setup.sh"
-install -m 0755 "${EXTERNAL_DIR}/board/luckfox/pico-pi-pimesh/rootfs-overlay/usr/local/sbin/network-priority.sh" "${APP_DIR}/network-priority.sh"
 install -m 0644 "${EXTERNAL_DIR}/README.md" "${APP_DIR}/README.md"
 install -m 0644 "${EXTERNAL_DIR}/BUILDROOT.md" "${APP_DIR}/BUILDROOT.md"
 
 mkdir -p "${TARGET_DIR}/usr/local/bin" "${TARGET_DIR}/usr/local/sbin"
 ln -snf /opt/pymc-repeater-buildroot/network-setup.sh "${TARGET_DIR}/usr/local/bin/network-setup.sh"
 ln -snf /opt/pymc-repeater-buildroot/wifi-setup.sh "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
-ln -snf /opt/pymc-repeater-buildroot/network-priority.sh "${TARGET_DIR}/usr/local/sbin/network-priority.sh"
 
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"

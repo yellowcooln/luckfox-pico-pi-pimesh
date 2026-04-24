@@ -49,7 +49,7 @@ Optional network priority helper:
   or:
   edit /etc/default/network-priority
   edit /etc/network-priority.wifi
-  sh network-priority.sh status
+  /usr/local/sbin/network-priority.sh status
   /etc/init.d/S41network-priority start
 
 This helper is off by default. When enabled, it prefers:
