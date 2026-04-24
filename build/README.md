@@ -14,8 +14,7 @@ This repo is still not the board support package by itself. The final bootable e
 
 On the flashed image, `/root/pymc-repeater-buildroot/buildroot-manage.sh` is
 only a bootstrap/proxy. It clones `pyMC_Repeater` into `~/pyMC_Repeater` and
-runs the repo's `buildroot-manage.sh` when present, with a small Buildroot
-compatibility shim layer for commands like `apt-get`.
+runs the repo's `buildroot-manage.sh` when present.
 
 ## What You Need
 
@@ -48,8 +47,8 @@ RK_BUILDROOT_DEFCONFIG=luckfox_pico_w_defconfig
 From a fresh VM:
 
 ```sh
-git clone https://github.com/yellowcooln/luckfox-pico-pi-pimesh.git
-cd luckfox-pico-pi-pimesh/build
+git clone https://github.com/yellowcooln/pymc-repeater-buildroot-pico-pi.git
+cd pymc-repeater-buildroot-pico-pi/build
 ./build-image.sh
 ```
 
@@ -57,8 +56,8 @@ What the script does:
 
 1. clones or refreshes the official Luckfox SDK into `build/.work/luckfox-pico`
 2. selects the Luckfox SDK board config from `BOARD_CONFIG_REL`, defaulting to the Pico Pi eMMC config above
-3. writes `config/buildroot_defconfig` from the selected board's Buildroot defconfig plus [luckfox_pico_pi_pymc.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment:1)
-4. installs [luckfox_pico_pi_tailscale_kernel.fragment](/home/yellowcooln/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_tailscale_kernel.fragment:1) into the SDK and appends it to the selected board's kernel fragment list
+3. writes `config/buildroot_defconfig` from the selected board's Buildroot defconfig plus `build/luckfox_pico_pi_pymc.fragment`
+4. installs `build/luckfox_pico_pi_tailscale_kernel.fragment` into the SDK and appends it to the selected board's kernel fragment list
 5. exports this repo as `BR2_EXTERNAL`
 6. runs direct host prerequisite checks
 7. links the SDK kernel and DTS config files directly
@@ -141,9 +140,9 @@ cd build/.work/luckfox-pico
 ln -snf <sdk-board-config> .BoardConfig.mk
 mkdir -p config
 cat sysdrv/tools/board/buildroot/<board-buildroot-defconfig> \
-  /path/to/luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment \
+  /path/to/pymc-repeater-buildroot-pico-pi/build/luckfox_pico_pi_pymc.fragment \
   > config/buildroot_defconfig
-export BR2_EXTERNAL=/path/to/luckfox-pico-pi-pimesh
+export BR2_EXTERNAL=/path/to/pymc-repeater-buildroot-pico-pi
 export PATH="$PWD/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin:$PATH"
 ./build.sh
 ./build.sh firmware

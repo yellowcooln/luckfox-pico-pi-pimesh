@@ -9,7 +9,7 @@ The image-side helper in `/root/pymc-repeater-buildroot` is only a
 bootstrap/proxy. It clones `pyMC_Repeater` into the current user's home
 directory, then runs the repo's own `buildroot-manage.sh` when present.
 
-For building a flashable Luckfox image with this repo layered onto the vendor Buildroot tree, use the files in [build](/home/yellowcooln/luckfox-pico-pi-pimesh/build).
+For building a flashable Luckfox image with this repo layered onto the vendor Buildroot tree, use the files in `build/`.
 
 Radio-specific configuration is intentionally deferred to the normal `pyMC_Repeater` setup flow.
 
@@ -50,7 +50,7 @@ sh buildroot-manage.sh advert
 What this does:
 
 - `doctor` checks the image baseline needed by the Buildroot install flow
-- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater`, hands off to the repo's own `buildroot-manage.sh install`, then seeds the repeater config locally
+- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater` and hands off to the repo's own `buildroot-manage.sh install`
 - `start` proxies to the repo's Buildroot service wrapper
 - `wait-ready` waits for the local API to come up
 - `advert` runs the known-good `pymc-cli advert` test path
@@ -115,7 +115,7 @@ Main commands:
 
 ## Radio Selection
 
-The image helper now supports Luckfox-specific radio profile selection after install.
+The repo-side Buildroot installer supports Luckfox-specific radio profile selection after install.
 
 Current choices:
 

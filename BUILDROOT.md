@@ -32,21 +32,21 @@ Typical flow:
 
 ```sh
 git clone <luckfox-vendor-buildroot> buildroot-luckfox
-git clone https://github.com/yellowcooln/luckfox-pico-pi-pimesh.git
+git clone https://github.com/yellowcooln/pymc-repeater-buildroot-pico-pi.git
 cd buildroot-luckfox
-make BR2_EXTERNAL=../luckfox-pico-pi-pimesh <vendor_board_defconfig>
+make BR2_EXTERNAL=../pymc-repeater-buildroot-pico-pi <vendor_board_defconfig>
 ```
 
 Then merge the package fragment values from:
 
 ```text
-../luckfox-pico-pi-pimesh/build/luckfox_pico_pi_pymc.fragment
+../pymc-repeater-buildroot-pico-pi/build/luckfox_pico_pi_pymc.fragment
 ```
 
 The repo also includes a helper script that runs that flow for you:
 
 ```sh
-../luckfox-pico-pi-pimesh/build/build-image.sh "$(pwd)" <vendor_board_defconfig>
+../pymc-repeater-buildroot-pico-pi/build/build-image.sh "$(pwd)" <vendor_board_defconfig>
 ```
 
 The simplest manual path is:
