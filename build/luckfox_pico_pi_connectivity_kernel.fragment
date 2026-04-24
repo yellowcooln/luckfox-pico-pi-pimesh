@@ -13,6 +13,9 @@ CONFIG_USER_NS=y
 CONFIG_AUTOFS_FS=y
 CONFIG_TMPFS_POSIX_ACL=y
 CONFIG_TMPFS_XATTR=y
+# The vendor base defconfig enables host-only DWC3. Explicitly flip the choice
+# back to dual-role so the USB-C port can expose a UDC for gadget/ADB mode.
+# CONFIG_USB_DWC3_HOST is not set
 CONFIG_USB_DWC3_DUAL_ROLE=y
 CONFIG_USB_NET_QMI_WWAN=y
 CONFIG_USB_NET_CDC_MBIM=y
