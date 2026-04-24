@@ -1,5 +1,5 @@
 #!/bin/sh
-# pyMC Console helper for LuckFox Pico Pi / Buildroot.
+# pyMC Console Web UI helper for LuckFox Pico Pi / Buildroot.
 
 set -eu
 

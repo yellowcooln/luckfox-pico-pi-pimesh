@@ -59,11 +59,11 @@ sh tailscale-manage.sh start
 sh tailscale-manage.sh up
 ```
 
-### `webui.sh`
+### `pymc-console-webui.sh`
 
 Location on the board:
 
-- `/root/scripts/webui.sh`
+- `/root/scripts/pymc-console-webui.sh`
 
 Purpose:
 
@@ -77,9 +77,9 @@ Typical use:
 
 ```sh
 cd /root/scripts
-sh webui.sh install
-sh webui.sh upgrade
-sh webui.sh status
+sh pymc-console-webui.sh install
+sh pymc-console-webui.sh upgrade
+sh pymc-console-webui.sh status
 ```
 
 ### `wifi-setup.sh`

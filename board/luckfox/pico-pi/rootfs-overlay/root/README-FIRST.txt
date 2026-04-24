@@ -45,9 +45,9 @@ Tailscale helper:
 
 pyMC Console web UI helper:
   cd /root/scripts
-  sh webui.sh install
-  sh webui.sh upgrade
-  sh webui.sh status
+  sh pymc-console-webui.sh install
+  sh pymc-console-webui.sh upgrade
+  sh pymc-console-webui.sh status
 
 Optional network priority helper:
   cd /root/scripts
