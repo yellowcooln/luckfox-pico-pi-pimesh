@@ -55,6 +55,12 @@ This helper is off by default. When enabled, it prefers:
 
 based on the metrics configured in /etc/default/network-priority.
 
+Basic Wi-Fi setup helper:
+  wifi-setup.sh
+
+This lets you scan, save one SSID/PSK entry, render wpa_supplicant.conf,
+and restart the Wi-Fi client without editing files by hand.
+
 The wrapper clones stock upstream pyMC_Repeater to:
   /root/pyMC_Repeater
 
