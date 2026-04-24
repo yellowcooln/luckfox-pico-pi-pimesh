@@ -13,6 +13,7 @@ SERVICE_SCRIPT="${SERVICE_SCRIPT:-/etc/init.d/S85tailscaled}"
 FLAGS_FILE="${FLAGS_FILE:-/etc/default/tailscaled}"
 TS_USERSPACE="${TS_USERSPACE:-0}"
 TS_SOCKET="${TS_SOCKET:-${RUN_DIR}/tailscale/tailscaled.sock}"
+TS_ACCEPT_DNS_DEFAULT="${TS_ACCEPT_DNS_DEFAULT:-false}"
 
 stage() {
   printf '\n==> %s\n' "$1"
@@ -270,6 +271,26 @@ ts_cli() {
   "$(tailscale_bin)" --socket="$TS_SOCKET" "$@"
 }
 
+ts_up() {
+  default_accept_dns="$TS_ACCEPT_DNS_DEFAULT"
+  explicit_accept_dns=0
+
+  for arg in "$@"; do
+    case "$arg" in
+      --accept-dns|--accept-dns=*|--reset)
+        explicit_accept_dns=1
+        break
+        ;;
+    esac
+  done
+
+  if [ "$explicit_accept_dns" = "0" ]; then
+    set -- --accept-dns="$default_accept_dns" "$@"
+  fi
+
+  ts_cli up "$@"
+}
+
 upgrade_tailscale() {
   ensure_root
   was_running=0
@@ -340,6 +361,7 @@ Environment:
   TAILSCALE_TRACK=stable|unstable
   TAILSCALE_VERSION=latest|<version>
   TS_USERSPACE=1 to default the service to userspace networking mode
+  TS_ACCEPT_DNS_DEFAULT=false|true to control the default tailscale up DNS behavior
   TAILSCALED_FLAGS="..." to override daemon flags in /etc/default/tailscaled
 EOF
 }
@@ -357,7 +379,7 @@ case "$cmd" in
     ;;
   up)
     shift
-    ts_cli up "$@"
+    ts_up "$@"
     ;;
   down)
     shift
