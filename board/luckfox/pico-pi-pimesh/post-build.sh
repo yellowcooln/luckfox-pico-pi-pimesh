@@ -45,6 +45,7 @@ install -m 0644 "${EXTERNAL_DIR}/README.md" "${APP_DIR}/README.md"
 install -m 0644 "${EXTERNAL_DIR}/BUILDROOT.md" "${APP_DIR}/BUILDROOT.md"
 
 mkdir -p "${TARGET_DIR}/usr/local/bin" "${TARGET_DIR}/usr/local/sbin"
+install -m 0755 "${EXTERNAL_DIR}/board/luckfox/pico-pi-pimesh/rootfs-overlay/usr/local/sbin/network-priority.sh" "${TARGET_DIR}/usr/local/sbin/network-priority.sh"
 ln -snf /opt/pymc-repeater-buildroot/network-setup.sh "${TARGET_DIR}/usr/local/bin/network-setup.sh"
 ln -snf /opt/pymc-repeater-buildroot/wifi-setup.sh "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
 
