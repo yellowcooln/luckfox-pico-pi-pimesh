@@ -1,0 +1,8 @@
+# One Wi-Fi network per line:
+#   SSID|PSK|PRIORITY
+#
+# Example:
+#   HomeWiFi|correct horse battery staple|100
+#   TravelHotspot|another secret|80
+#
+# Higher PRIORITY values are preferred by wpa_supplicant roaming.

@@ -1,0 +1,21 @@
+# Optional network-priority policy for Luckfox Pico Pi.
+# Leave ENABLED=0 unless you want the board to manage route preference.
+
+ENABLED=0
+
+ETH_INTERFACE="eth0"
+WIFI_INTERFACE="wlan0"
+LTE_INTERFACES="wwan0 usb0 ppp0"
+
+ETH_PRIORITY=100
+WIFI_PRIORITY=200
+LTE_PRIORITY=300
+
+ENABLE_WIFI=1
+ENABLE_LTE_FALLBACK=0
+
+WPA_CONF="/etc/wpa_supplicant.conf"
+WIFI_NETWORKS_FILE="/etc/network-priority.wifi"
+
+COUNTRY="US"
+CHECK_INTERVAL=15

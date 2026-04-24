@@ -1,0 +1,164 @@
+#!/bin/sh
+set -eu
+
+CONFIG_FILE=${NETWORK_PRIORITY_CONFIG:-/etc/default/network-priority}
+
+log() {
+  printf '%s\n' "$1"
+}
+
+load_config() {
+  [ -f "$CONFIG_FILE" ] || {
+    log "Missing config: $CONFIG_FILE"
+    exit 1
+  }
+  # shellcheck disable=SC1090
+  . "$CONFIG_FILE"
+}
+
+is_enabled() {
+  [ "${ENABLED:-0}" = "1" ]
+}
+
+iface_exists() {
+  [ -d "/sys/class/net/$1" ]
+}
+
+iface_has_ipv4() {
+  ip -4 addr show dev "$1" 2>/dev/null | grep -q 'inet '
+}
+
+wifi_connected() {
+  iface_exists "${WIFI_INTERFACE}" || return 1
+  command -v wpa_cli >/dev/null 2>&1 || return 1
+  wpa_cli -i "${WIFI_INTERFACE}" status 2>/dev/null | grep -q '^wpa_state=COMPLETED$'
+}
+
+render_wpa_conf() {
+  local tmp_file ssid psk priority
+
+  [ "${ENABLE_WIFI:-1}" = "1" ] || return 0
+  [ -f "${WIFI_NETWORKS_FILE}" ] || return 0
+
+  tmp_file=$(mktemp)
+  cat >"$tmp_file" <<EOF
+ctrl_interface=/var/run/wpa_supplicant
+update_config=1
+country=${COUNTRY:-US}
+EOF
+
+  while IFS='|' read -r ssid psk priority; do
+    case "${ssid}" in
+      ''|'#'*) continue ;;
+    esac
+    [ -n "${psk:-}" ] || continue
+    [ -n "${priority:-}" ] || priority=50
+    cat >>"$tmp_file" <<EOF
+
+network={
+  ssid="${ssid}"
+  psk="${psk}"
+  key_mgmt=WPA-PSK
+  priority=${priority}
+}
+EOF
+  done < "${WIFI_NETWORKS_FILE}"
+
+  install -m 0600 "$tmp_file" "${WPA_CONF:-/etc/wpa_supplicant.conf}"
+  rm -f "$tmp_file"
+}
+
+ensure_wifi_started() {
+  [ "${ENABLE_WIFI:-1}" = "1" ] || return 0
+  iface_exists "${WIFI_INTERFACE}" || return 0
+  [ -f "${WPA_CONF:-/etc/wpa_supplicant.conf}" ] || return 0
+  /etc/init.d/S39wpa-client restart >/dev/null 2>&1 || true
+}
+
+normalize_default_routes() {
+  local iface="$1"
+  local metric="$2"
+  local changed=0
+  local line stripped
+
+  ip route show default dev "$iface" 2>/dev/null | while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    stripped=$(printf '%s\n' "$line" | sed -E 's/ metric [0-9]+//g')
+    if [ "$stripped metric $metric" != "$line" ]; then
+      ip route replace $stripped metric "$metric" >/dev/null 2>&1 || true
+      changed=1
+    fi
+  done
+  return 0
+}
+
+apply_metrics() {
+  local lte_iface
+
+  iface_exists "${ETH_INTERFACE}" && iface_has_ipv4 "${ETH_INTERFACE}" && \
+    normalize_default_routes "${ETH_INTERFACE}" "${ETH_PRIORITY:-100}"
+
+  if [ "${ENABLE_WIFI:-1}" = "1" ] && wifi_connected && iface_has_ipv4 "${WIFI_INTERFACE}"; then
+    normalize_default_routes "${WIFI_INTERFACE}" "${WIFI_PRIORITY:-200}"
+  fi
+
+  [ "${ENABLE_LTE_FALLBACK:-0}" = "1" ] || return 0
+  for lte_iface in ${LTE_INTERFACES:-}; do
+    iface_exists "$lte_iface" || continue
+    iface_has_ipv4 "$lte_iface" || continue
+    normalize_default_routes "$lte_iface" "${LTE_PRIORITY:-300}"
+  done
+}
+
+show_status() {
+  load_config
+  printf 'enabled=%s\n' "${ENABLED:-0}"
+  printf 'eth=%s wifi=%s lte=%s\n' "${ETH_INTERFACE:-eth0}" "${WIFI_INTERFACE:-wlan0}" "${LTE_INTERFACES:-}"
+  printf 'metrics eth=%s wifi=%s lte=%s\n' "${ETH_PRIORITY:-100}" "${WIFI_PRIORITY:-200}" "${LTE_PRIORITY:-300}"
+  printf '\nCurrent default routes:\n'
+  ip route show default 2>/dev/null || true
+  printf '\nLink state:\n'
+  for iface in "${ETH_INTERFACE:-eth0}" "${WIFI_INTERFACE:-wlan0}" ${LTE_INTERFACES:-}; do
+    iface_exists "$iface" || continue
+    printf '%s: ' "$iface"
+    cat "/sys/class/net/$iface/operstate" 2>/dev/null || printf 'unknown'
+    printf '\n'
+  done
+}
+
+run_once() {
+  load_config
+  is_enabled || exit 0
+  render_wpa_conf
+  ensure_wifi_started
+  apply_metrics
+}
+
+run_daemon() {
+  load_config
+  is_enabled || exit 0
+  while :; do
+    run_once
+    sleep "${CHECK_INTERVAL:-15}"
+  done
+}
+
+case "${1:-}" in
+  render-wifi)
+    load_config
+    render_wpa_conf
+    ;;
+  once)
+    run_once
+    ;;
+  daemon)
+    run_daemon
+    ;;
+  status)
+    show_status
+    ;;
+  *)
+    echo "Usage: $0 {render-wifi|once|daemon|status}"
+    exit 1
+    ;;
+esac

@@ -24,16 +24,14 @@ Expected first steps after flashing:
 If you want to watch the repeater log:
   sh buildroot-manage.sh logs
 
-After install, the image helper now asks which Luckfox radio profile you have:
-  1) PiMesh V2
-  2) PiMesh V1 / MeshAdv
-
-It also seeds:
+During install, the pulled pyMC_Repeater repo helper asks for:
   - repeater name
   - admin password
-  - radio settings
+  - radio profile
+  - radio preset
 
-so the service can start with a usable config and avoid the web setup wizard.
+and writes the initial config so the service can start without relying on the
+web setup wizard.
 
 You can rerun that later with:
   sh buildroot-manage.sh configure
@@ -44,6 +42,18 @@ Tailscale helper:
   sh tailscale-manage.sh install
   sh tailscale-manage.sh start
   sh tailscale-manage.sh up
+
+Optional network priority helper:
+  edit /etc/default/network-priority
+  edit /etc/network-priority.wifi
+  /etc/init.d/S41network-priority start
+
+This helper is off by default. When enabled, it prefers:
+  - Ethernet first
+  - Wi-Fi second
+  - LTE last
+
+based on the metrics configured in /etc/default/network-priority.
 
 The wrapper clones stock upstream pyMC_Repeater to:
   /root/pyMC_Repeater

@@ -1,0 +1,48 @@
+#!/bin/sh
+
+DAEMON=/usr/local/sbin/network-priority.sh
+PIDFILE=/var/run/network-priority.pid
+
+start() {
+  [ -x "$DAEMON" ] || return 0
+  if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    return 0
+  fi
+  start-stop-daemon -S -b -m -p "$PIDFILE" -x /bin/sh -- "$DAEMON" daemon
+}
+
+stop() {
+  if [ -f "$PIDFILE" ]; then
+    start-stop-daemon -K -p "$PIDFILE" >/dev/null 2>&1 || true
+    rm -f "$PIDFILE"
+  fi
+}
+
+status() {
+  if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "network-priority is running"
+    return 0
+  fi
+  echo "network-priority is not running"
+  return 1
+}
+
+case "${1:-}" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    stop
+    start
+    ;;
+  status)
+    status
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit 1
+    ;;
+esac
