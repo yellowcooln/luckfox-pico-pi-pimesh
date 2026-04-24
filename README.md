@@ -1,4 +1,7 @@
-# Luckfox Pico Pi pyMC Repeater Buildroot Setup
+# pymc-repeater-buildroot-pico-pi
+
+Buildroot image and first-boot tooling for running `pyMC_Repeater` on a
+Luckfox Pico Pi.
 
 This repo packages a Buildroot-friendly `pyMC_Repeater` setup for a Luckfox Pico Pi, aimed at the upstream `pyMC_Repeater` `dev` branch and not tied to a single radio model.
 
@@ -8,6 +11,10 @@ and networking stack.
 The image-side helper in `/root/pymc-repeater-buildroot` is only a
 bootstrap/proxy. It clones `pyMC_Repeater` into the current user's home
 directory, then runs the repo's own `buildroot-manage.sh` when present.
+
+GitHub repo:
+
+- `https://github.com/yellowcooln/pymc-repeater-buildroot-pico-pi`
 
 For building a flashable Luckfox image with this repo layered onto the vendor Buildroot tree, use the files in `build/`.
 
@@ -70,8 +77,6 @@ The upstream repo checkout is expected to live at:
 
 - `/root/pyMC_Repeater`
 
-When the image download is finalized, this README will be the main post-flash reference for users.
-
 ## What The Image Assumes
 
 - Buildroot image with Python `3.10+`
@@ -122,7 +127,7 @@ Current choices:
 - `PiMesh V2`
 - `PiMesh V1 / MeshAdv`
 
-During install it now also asks for:
+During install, the repo-side Buildroot manager asks for:
 
 - repeater name
 - admin password
@@ -131,7 +136,7 @@ During install it now also asks for:
 and writes those directly into `/etc/pymc_repeater/config.yaml` so the service
 does not need to rely on the web setup wizard.
 
-You can rerun the full config seeding later with:
+You can rerun the full config flow later with:
 
 ```sh
 sh buildroot-manage.sh configure
@@ -161,4 +166,6 @@ be ready, and only then do radio-specific testing.
 
 This repo is about building a usable Luckfox Pico Pi Buildroot image for stock upstream `pyMC_Repeater`.
 
-It is intentionally not carrying local `pyMC_core` or `pyMC_Repeater` patches at this stage.
+It intentionally keeps the image-side helper thin and expects ongoing runtime
+behavior to come from the pulled `pyMC_Repeater` repo, not from baked image
+scripts.
