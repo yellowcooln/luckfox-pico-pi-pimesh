@@ -89,7 +89,14 @@ download_dashboard() {
 
   rm -rf "$UI_DIR"
   mkdir -p "$UI_DIR"
-  tar -xzf "$temp_file" -C "$UI_DIR"
+  if tar -xaf "$temp_file" -C "$UI_DIR" 2>/dev/null; then
+    :
+  elif command -v gzip >/dev/null 2>&1; then
+    gzip -dc "$temp_file" | tar -xf - -C "$UI_DIR" \
+      || fail "Could not extract dashboard archive"
+  else
+    fail "Could not extract dashboard archive"
+  fi
   rm -f "$temp_file"
 }
 
