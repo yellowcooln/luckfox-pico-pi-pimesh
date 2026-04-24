@@ -18,6 +18,10 @@ GitHub repo:
 
 For building a flashable Luckfox image with this repo layered onto the vendor Buildroot tree, use the files in `build/`.
 
+Helper script overview:
+
+- [SCRIPTS.md](./SCRIPTS.md)
+
 Radio-specific configuration is intentionally deferred to the normal `pyMC_Repeater` setup flow.
 
 The built image is intended to ship with SSH login enabled and a known default credential:
