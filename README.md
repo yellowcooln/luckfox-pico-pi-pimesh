@@ -8,7 +8,7 @@ This repo packages a Buildroot-friendly `pyMC_Repeater` setup for a Luckfox Pico
 The shipped image is a normal Buildroot appliance using the Luckfox vendor init
 and networking stack.
 
-The image-side helper in `/root/pymc-repeater-buildroot` is only a
+The image-side helper in `/root/scripts` is only a
 bootstrap/proxy. It clones `pyMC_Repeater` into the current user's home
 directory, then runs the repo's own `buildroot-manage.sh` when present.
 
@@ -41,7 +41,7 @@ Default login:
 2. Go to the helper directory that ships inside the image:
 
 ```sh
-cd /root/pymc-repeater-buildroot
+cd /root/scripts
 ```
 
 3. Run the setup and first smoke test:
@@ -71,7 +71,7 @@ The image also ships with:
 The helper files are preloaded in the image at:
 
 - `/opt/pymc-repeater-buildroot`
-- `/root/pymc-repeater-buildroot`
+- `/root/scripts`
 
 The upstream repo checkout is expected to live at:
 

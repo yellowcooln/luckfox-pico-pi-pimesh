@@ -49,7 +49,7 @@ ln -snf /opt/pymc-repeater-buildroot/network-setup.sh "${TARGET_DIR}/usr/local/b
 ln -snf /opt/pymc-repeater-buildroot/wifi-setup.sh "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
 
 mkdir -p "${TARGET_DIR}/root"
-ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/pymc-repeater-buildroot"
+ln -snf /opt/pymc-repeater-buildroot "${TARGET_DIR}/root/scripts"
 
 mkdir -p "${TARGET_DIR}/var/empty"
 chmod 0755 "${TARGET_DIR}/var/empty"

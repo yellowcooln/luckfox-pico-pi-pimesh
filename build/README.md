@@ -12,7 +12,7 @@ This repo is still not the board support package by itself. The final bootable e
 - a small kernel fragment to make the image Tailscale-ready by default
 - a helper script that downloads the SDK into a repo-local workspace and drives the full build
 
-On the flashed image, `/root/pymc-repeater-buildroot/buildroot-manage.sh` is
+On the flashed image, `/root/scripts/buildroot-manage.sh` is
 only a bootstrap/proxy. It clones `pyMC_Repeater` into `~/pyMC_Repeater` and
 runs the repo's `buildroot-manage.sh` when present.
 

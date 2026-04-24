@@ -8,13 +8,13 @@ Helper files are preloaded at:
   /opt/pymc-repeater-buildroot
 
 Convenience symlink:
-  /root/pymc-repeater-buildroot
+  /root/scripts
 
 This image boots as a normal Buildroot appliance using the vendor init/network
 stack. It does not ship systemd.
 
 Expected first steps after flashing:
-  cd /root/pymc-repeater-buildroot
+  cd /root/scripts
   sh buildroot-manage.sh doctor
   sh buildroot-manage.sh install
   sh buildroot-manage.sh start
@@ -38,13 +38,13 @@ You can rerun that later with:
   sh buildroot-manage.sh radio-profile
 
 Tailscale helper:
-  cd /root/pymc-repeater-buildroot
+  cd /root/scripts
   sh tailscale-manage.sh install
   sh tailscale-manage.sh start
   sh tailscale-manage.sh up
 
 Optional network priority helper:
-  cd /root/pymc-repeater-buildroot
+  cd /root/scripts
   sh network-setup.sh
   or:
   edit /etc/default/network-priority
@@ -60,7 +60,7 @@ This helper is off by default. When enabled, it prefers:
 based on the metrics configured in /etc/default/network-priority.
 
 Basic Wi-Fi setup helper:
-  cd /root/pymc-repeater-buildroot
+  cd /root/scripts
   sh wifi-setup.sh
 
 This lets you scan, save one SSID/PSK entry, render wpa_supplicant.conf,

@@ -9,7 +9,7 @@ Goals:
 - Python 3 present with the MeshCore runtime dependencies built into the image
 - the normal Luckfox/Buildroot init and networking stack
 - pyMC Repeater helper files preloaded at `/opt/pymc-repeater-buildroot`
-- convenience symlink at `/root/pymc-repeater-buildroot`
+- convenience symlink at `/root/scripts`
 
 ## What This Repo Adds
 
@@ -71,12 +71,12 @@ The post-build script copies these into the target rootfs:
 - `/opt/pymc-repeater-buildroot/BUILDROOT.md`
 It also creates:
 
-- `/root/pymc-repeater-buildroot -> /opt/pymc-repeater-buildroot`
+- `/root/scripts -> /opt/pymc-repeater-buildroot`
 
 The intended user flow on a flashed image is:
 
 1. SSH in as `root` with password `luckfox`
-2. `cd /root/pymc-repeater-buildroot`
+2. `cd /root/scripts`
 3. `sh buildroot-manage.sh doctor`
 4. `sh buildroot-manage.sh install`
 5. `sh buildroot-manage.sh start`

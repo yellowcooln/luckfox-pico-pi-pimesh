@@ -8,7 +8,7 @@ This repository layers stock upstream `pyMC` support onto the official Luckfox P
 - `board/luckfox/pico-pi-pimesh/`: rootfs overlay and post-build hook copied into the final image.
 - `package/yellowcooln/`: custom Buildroot package definitions for Python dependencies not covered upstream.
 - `configs/`: Buildroot config fragments merged into the vendor SDK config.
-- `buildroot-manage.sh`: on-device runtime helper shipped inside the image at `/root/pymc-repeater-buildroot`.
+- `buildroot-manage.sh`: on-device runtime helper shipped inside the image at `/root/scripts`.
 
 Do not commit repo-local SDK artifacts from `build/.work/` or generated zip images.
 
@@ -26,7 +26,7 @@ Do not commit repo-local SDK artifacts from `build/.work/` or generated zip imag
 After flashing, the normal device flow is:
 
 ```sh
-cd /root/pymc-repeater-buildroot
+cd /root/scripts
 sh buildroot-manage.sh doctor
 sh buildroot-manage.sh install
 ```
