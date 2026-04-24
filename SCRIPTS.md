@@ -59,6 +59,29 @@ sh tailscale-manage.sh start
 sh tailscale-manage.sh up
 ```
 
+### `webui.sh`
+
+Location on the board:
+
+- `/root/scripts/webui.sh`
+
+Purpose:
+
+- install and manage the pyMC Console web UI on the Buildroot image
+- downloads the console release tarball into:
+  - `/opt/pymc_console/web/html`
+- sets `web.web_path` in `/etc/pymc_repeater/config.yaml`
+- restarts `pymc-repeater` through BusyBox `init.d`
+
+Typical use:
+
+```sh
+cd /root/scripts
+sh webui.sh install
+sh webui.sh upgrade
+sh webui.sh status
+```
+
 ### `wifi-setup.sh`
 
 Location on the board:

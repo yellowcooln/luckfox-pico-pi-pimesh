@@ -43,6 +43,12 @@ Tailscale helper:
   sh tailscale-manage.sh start
   sh tailscale-manage.sh up
 
+pyMC Console web UI helper:
+  cd /root/scripts
+  sh webui.sh install
+  sh webui.sh upgrade
+  sh webui.sh status
+
 Optional network priority helper:
   cd /root/scripts
   sh network-setup.sh

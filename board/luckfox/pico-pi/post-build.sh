@@ -44,6 +44,7 @@ rm -f "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
 
 install -m 0755 "${EXTERNAL_DIR}/buildroot-manage.sh" "${APP_DIR}/buildroot-manage.sh"
 install -m 0755 "${EXTERNAL_DIR}/tailscale-manage.sh" "${APP_DIR}/tailscale-manage.sh"
+install -m 0755 "${EXTERNAL_DIR}/webui.sh" "${APP_DIR}/webui.sh"
 install -m 0755 "${EXTERNAL_DIR}/board/luckfox/pico-pi/rootfs-overlay/usr/local/bin/network-setup.sh" "${APP_DIR}/network-setup.sh"
 install -m 0755 "${EXTERNAL_DIR}/board/luckfox/pico-pi/rootfs-overlay/usr/local/bin/wifi-setup.sh" "${APP_DIR}/wifi-setup.sh"
 install -m 0644 "${EXTERNAL_DIR}/README.md" "${APP_DIR}/README.md"
