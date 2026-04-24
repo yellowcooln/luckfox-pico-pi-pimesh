@@ -44,8 +44,10 @@ Tailscale helper:
   sh tailscale-manage.sh up
 
 Optional network priority helper:
+  cd /root/pymc-repeater-buildroot
   edit /etc/default/network-priority
   edit /etc/network-priority.wifi
+  sh network-priority.sh status
   /etc/init.d/S41network-priority start
 
 This helper is off by default. When enabled, it prefers:
@@ -56,7 +58,8 @@ This helper is off by default. When enabled, it prefers:
 based on the metrics configured in /etc/default/network-priority.
 
 Basic Wi-Fi setup helper:
-  wifi-setup.sh
+  cd /root/pymc-repeater-buildroot
+  sh wifi-setup.sh
 
 This lets you scan, save one SSID/PSK entry, render wpa_supplicant.conf,
 and restart the Wi-Fi client without editing files by hand.
