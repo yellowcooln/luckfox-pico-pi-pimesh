@@ -1,0 +1,6 @@
+config BR2_PACKAGE_PYTHON_ADAFRUIT_PUREIO
+	bool "python-adafruit-pureio"
+	help
+	  Pure Python interfaces for low-level hardware access.
+
+	  https://pypi.org/project/Adafruit-PureIO/

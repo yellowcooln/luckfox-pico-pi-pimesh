@@ -1,0 +1,6 @@
+config BR2_PACKAGE_PYTHON_MOCK
+	bool "python-mock"
+	help
+	  Backport of Python mock support.
+
+	  https://pypi.org/project/mock/

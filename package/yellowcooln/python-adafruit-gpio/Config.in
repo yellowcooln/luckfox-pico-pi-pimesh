@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_ADAFRUIT_GPIO
+	bool "python-adafruit-gpio"
+	select BR2_PACKAGE_PYTHON_ADAFRUIT_PUREIO
+	help
+	  Adafruit GPIO helper library with I2C and SPI helpers.
+
+	  https://pypi.org/project/Adafruit-GPIO/

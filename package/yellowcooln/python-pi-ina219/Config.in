@@ -1,0 +1,8 @@
+config BR2_PACKAGE_PYTHON_PI_INA219
+	bool "python-pi-ina219"
+	select BR2_PACKAGE_PYTHON_ADAFRUIT_GPIO
+	select BR2_PACKAGE_PYTHON_MOCK
+	help
+	  INA219 voltage, current, and power monitor library.
+
+	  https://github.com/chrisb2/pi_ina219/
