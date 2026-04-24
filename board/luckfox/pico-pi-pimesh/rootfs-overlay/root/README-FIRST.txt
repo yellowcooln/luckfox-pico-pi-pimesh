@@ -45,6 +45,8 @@ Tailscale helper:
 
 Optional network priority helper:
   cd /root/pymc-repeater-buildroot
+  sh network-setup.sh
+  or:
   edit /etc/default/network-priority
   edit /etc/network-priority.wifi
   sh network-priority.sh status
@@ -63,6 +65,12 @@ Basic Wi-Fi setup helper:
 
 This lets you scan, save one SSID/PSK entry, render wpa_supplicant.conf,
 and restart the Wi-Fi client without editing files by hand.
+
+`network-setup.sh` is the nicer menu-driven wrapper for:
+  - setting Ethernet/Wi-Fi/LTE priorities
+  - enabling LTE fallback
+  - adding/removing saved Wi-Fi networks
+  - applying the policy immediately
 
 The wrapper clones stock upstream pyMC_Repeater to:
   /root/pyMC_Repeater
