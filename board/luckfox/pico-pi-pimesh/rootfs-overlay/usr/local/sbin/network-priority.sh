@@ -28,6 +28,10 @@ iface_has_ipv4() {
   ip -4 addr show dev "$1" 2>/dev/null | grep -q 'inet '
 }
 
+iface_has_default_route() {
+  ip route show default dev "$1" 2>/dev/null | grep -q '^default '
+}
+
 wifi_connected() {
   iface_exists "${WIFI_INTERFACE}" || return 1
   command -v wpa_cli >/dev/null 2>&1 || return 1
@@ -78,7 +82,6 @@ ensure_wifi_started() {
 normalize_default_routes() {
   local iface="$1"
   local metric="$2"
-  local changed=0
   local line stripped
 
   ip route show default dev "$iface" 2>/dev/null | while IFS= read -r line; do
@@ -86,27 +89,95 @@ normalize_default_routes() {
     stripped=$(printf '%s\n' "$line" | sed -E 's/ metric [0-9]+//g')
     if [ "$stripped metric $metric" != "$line" ]; then
       ip route replace $stripped metric "$metric" >/dev/null 2>&1 || true
-      changed=1
     fi
   done
   return 0
 }
 
-apply_metrics() {
+iface_is_usable_eth() {
+  iface_exists "${ETH_INTERFACE}" || return 1
+  iface_has_ipv4 "${ETH_INTERFACE}" || return 1
+  iface_has_default_route "${ETH_INTERFACE}" || return 1
+}
+
+iface_is_usable_wifi() {
+  [ "${ENABLE_WIFI:-1}" = "1" ] || return 1
+  wifi_connected || return 1
+  iface_has_ipv4 "${WIFI_INTERFACE}" || return 1
+  iface_has_default_route "${WIFI_INTERFACE}" || return 1
+}
+
+collect_usable_lte_ifaces() {
   local lte_iface
-
-  iface_exists "${ETH_INTERFACE}" && iface_has_ipv4 "${ETH_INTERFACE}" && \
-    normalize_default_routes "${ETH_INTERFACE}" "${ETH_PRIORITY:-100}"
-
-  if [ "${ENABLE_WIFI:-1}" = "1" ] && wifi_connected && iface_has_ipv4 "${WIFI_INTERFACE}"; then
-    normalize_default_routes "${WIFI_INTERFACE}" "${WIFI_PRIORITY:-200}"
-  fi
 
   [ "${ENABLE_LTE_FALLBACK:-0}" = "1" ] || return 0
   for lte_iface in ${LTE_INTERFACES:-}; do
     iface_exists "$lte_iface" || continue
     iface_has_ipv4 "$lte_iface" || continue
-    normalize_default_routes "$lte_iface" "${LTE_PRIORITY:-300}"
+    iface_has_default_route "$lte_iface" || continue
+    printf '%s\n' "$lte_iface"
+  done
+}
+
+iface_in_list() {
+  local needle="$1"
+  shift
+  for iface in "$@"; do
+    [ "$iface" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+apply_metrics() {
+  local active_ifaces="" iface metric inactive_metric lte_iface
+  local first_metric="${ETH_PRIORITY:-100}"
+  local second_metric="${WIFI_PRIORITY:-200}"
+  local third_metric="${LTE_PRIORITY:-300}"
+  local fourth_metric=$((third_metric + 100))
+  local inactive_metric=$((fourth_metric + 100))
+
+  if iface_is_usable_eth; then
+    active_ifaces="${ETH_INTERFACE}"
+  fi
+
+  if iface_is_usable_wifi; then
+    if [ -n "$active_ifaces" ]; then
+      active_ifaces="${active_ifaces} ${WIFI_INTERFACE}"
+    else
+      active_ifaces="${WIFI_INTERFACE}"
+    fi
+  fi
+
+  while IFS= read -r lte_iface; do
+    [ -n "$lte_iface" ] || continue
+    if [ -n "$active_ifaces" ]; then
+      active_ifaces="${active_ifaces} ${lte_iface}"
+    else
+      active_ifaces="${lte_iface}"
+    fi
+  done <<EOF
+$(collect_usable_lte_ifaces)
+EOF
+
+  metric="$first_metric"
+  for iface in $active_ifaces; do
+    normalize_default_routes "$iface" "$metric"
+    if [ "$metric" -eq "$first_metric" ]; then
+      metric="$second_metric"
+    elif [ "$metric" -eq "$second_metric" ]; then
+      metric="$third_metric"
+    else
+      metric=$((metric + 100))
+    fi
+  done
+
+  for iface in "${ETH_INTERFACE}" "${WIFI_INTERFACE}" ${LTE_INTERFACES:-}; do
+    iface_exists "$iface" || continue
+    iface_has_default_route "$iface" || continue
+    if iface_in_list "$iface" $active_ifaces; then
+      continue
+    fi
+    normalize_default_routes "$iface" "$inactive_metric"
   done
 }
 
