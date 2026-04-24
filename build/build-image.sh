@@ -30,7 +30,10 @@ Environment:
                      Buildroot config fragment to append.
                      Default: <repo>/build/luckfox_pico_pi_pymc.fragment
   PYMC_KERNEL_FRAGMENT
-                     Kernel config fragment to append.
+                     Kernel config fragment for pyMC/base board support.
+                     Default: <repo>/build/luckfox_pico_pi_pymc_kernel.fragment
+  TAILSCALE_KERNEL_FRAGMENT
+                     Kernel config fragment for Tailscale-specific support.
                      Default: <repo>/build/luckfox_pico_pi_tailscale_kernel.fragment
   AUTO_ZIP           Set to 1 to always zip the image output into <repo>/build.
                      Set to 0 to skip zipping without prompting.
@@ -218,13 +221,15 @@ check_sdk_layout() {
 
   [ -f "${SDK_BOARD_CONFIG_LINK}" ] || fail "Missing .BoardConfig.mk: ${SDK_BOARD_CONFIG_LINK}"
   [ -f "${SDK_BUILDROOT_DEFCONFIG}" ] || fail "Missing buildroot defconfig: ${SDK_BUILDROOT_DEFCONFIG}"
-  [ -f "${SDK_KERNEL_FRAGMENT_PATH}" ] || fail "Missing injected kernel fragment: ${SDK_KERNEL_FRAGMENT_PATH}"
+  [ -f "${SDK_PYMC_KERNEL_FRAGMENT_PATH}" ] || fail "Missing injected pyMC kernel fragment: ${SDK_PYMC_KERNEL_FRAGMENT_PATH}"
+  [ -f "${SDK_TAILSCALE_KERNEL_FRAGMENT_PATH}" ] || fail "Missing injected tailscale kernel fragment: ${SDK_TAILSCALE_KERNEL_FRAGMENT_PATH}"
   [ -f "${SDK_DIR}/config/kernel_defconfig" ] || fail "Missing kernel defconfig symlink in SDK config/"
   [ -f "${SDK_DIR}/config/dts_config" ] || fail "Missing DTS config symlink in SDK config/"
 
   printf 'Check [OK]: %s\n' "${SDK_BOARD_CONFIG_LINK}"
   printf 'Check [OK]: %s\n' "${SDK_BUILDROOT_DEFCONFIG}"
-  printf 'Check [OK]: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
+  printf 'Check [OK]: %s\n' "${SDK_PYMC_KERNEL_FRAGMENT_PATH}"
+  printf 'Check [OK]: %s\n' "${SDK_TAILSCALE_KERNEL_FRAGMENT_PATH}"
   printf 'Check [OK]: %s\n' "${SDK_DIR}/config/kernel_defconfig"
   printf 'Check [OK]: %s\n' "${SDK_DIR}/config/dts_config"
 }
@@ -449,7 +454,8 @@ fi
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
 FRAGMENT="${PYMC_BUILDROOT_FRAGMENT:-${REPO_ROOT}/build/luckfox_pico_pi_pymc.fragment}"
-KERNEL_FRAGMENT="${PYMC_KERNEL_FRAGMENT:-${REPO_ROOT}/build/luckfox_pico_pi_tailscale_kernel.fragment}"
+PYMC_KERNEL_FRAGMENT="${PYMC_KERNEL_FRAGMENT:-${REPO_ROOT}/build/luckfox_pico_pi_pymc_kernel.fragment}"
+TAILSCALE_KERNEL_FRAGMENT="${TAILSCALE_KERNEL_FRAGMENT:-${REPO_ROOT}/build/luckfox_pico_pi_tailscale_kernel.fragment}"
 SDK_REPO="${SDK_REPO:-https://github.com/LuckfoxTECH/luckfox-pico.git}"
 SDK_REF="${SDK_REF:-main}"
 SDK_WORK_DIR="${SDK_WORK_DIR:-${REPO_ROOT}/build/.work/luckfox-pico}"
@@ -463,8 +469,10 @@ SDK_BUILDROOT_DEFCONFIG="${SDK_DIR}/config/buildroot_defconfig"
 SDK_BUILDSH="${SDK_DIR}/build.sh"
 TOOLCHAIN_ENV="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/env_install_toolchain.sh"
 TOOLCHAIN_BIN="${SDK_DIR}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin"
-SDK_KERNEL_FRAGMENT_NAME="luckfox_pymc_tailscale.config"
-SDK_KERNEL_FRAGMENT_PATH="${SDK_DIR}/sysdrv/source/kernel/arch/arm/configs/${SDK_KERNEL_FRAGMENT_NAME}"
+SDK_PYMC_KERNEL_FRAGMENT_NAME="luckfox_pymc.config"
+SDK_PYMC_KERNEL_FRAGMENT_PATH="${SDK_DIR}/sysdrv/source/kernel/arch/arm/configs/${SDK_PYMC_KERNEL_FRAGMENT_NAME}"
+SDK_TAILSCALE_KERNEL_FRAGMENT_NAME="luckfox_tailscale.config"
+SDK_TAILSCALE_KERNEL_FRAGMENT_PATH="${SDK_DIR}/sysdrv/source/kernel/arch/arm/configs/${SDK_TAILSCALE_KERNEL_FRAGMENT_NAME}"
 
 need_cmd sed
 need_cmd tail
@@ -473,7 +481,8 @@ sync_sdk_repo "${SDK_REPO}" "${SDK_REF}" "${SDK_DIR}"
 [ -f "${SDK_BUILDSH}" ] || fail "Missing Luckfox SDK build script: ${SDK_BUILDSH}"
 [ -f "${BOARD_CONFIG_PATH}" ] || fail "Missing board config: ${BOARD_CONFIG_PATH}. Set BOARD_CONFIG_REL to the Luckfox SDK board config you want to build."
 [ -f "${FRAGMENT}" ] || fail "Missing config fragment: ${FRAGMENT}"
-[ -f "${KERNEL_FRAGMENT}" ] || fail "Missing kernel fragment: ${KERNEL_FRAGMENT}"
+[ -f "${PYMC_KERNEL_FRAGMENT}" ] || fail "Missing pyMC kernel fragment: ${PYMC_KERNEL_FRAGMENT}"
+[ -f "${TAILSCALE_KERNEL_FRAGMENT}" ] || fail "Missing tailscale kernel fragment: ${TAILSCALE_KERNEL_FRAGMENT}"
 [ -f "${TOOLCHAIN_ENV}" ] || fail "Missing Luckfox toolchain env script: ${TOOLCHAIN_ENV}"
 [ -d "${TOOLCHAIN_BIN}" ] || fail "Missing Luckfox toolchain bin directory: ${TOOLCHAIN_BIN}"
 
@@ -486,15 +495,17 @@ BASE_DEFCONFIG_PATH="${SDK_DIR}/sysdrv/tools/board/buildroot/${BASE_DEFCONFIG}"
 stage "Selecting Luckfox board config"
 mkdir -p "${SDK_DIR}/config"
 cat "${BOARD_CONFIG_PATH}" > "${SDK_GENERATED_BOARD_CONFIG}"
-printf '\nexport RK_KERNEL_DEFCONFIG_FRAGMENT="${RK_KERNEL_DEFCONFIG_FRAGMENT} %s"\n' "${SDK_KERNEL_FRAGMENT_NAME}" >> "${SDK_GENERATED_BOARD_CONFIG}"
+printf '\nexport RK_KERNEL_DEFCONFIG_FRAGMENT="${RK_KERNEL_DEFCONFIG_FRAGMENT} %s %s"\n' "${SDK_PYMC_KERNEL_FRAGMENT_NAME}" "${SDK_TAILSCALE_KERNEL_FRAGMENT_NAME}" >> "${SDK_GENERATED_BOARD_CONFIG}"
 BOARD_CONFIG_SOURCE_PATH="${SDK_GENERATED_BOARD_CONFIG}"
 ln -snf "${SDK_GENERATED_BOARD_CONFIG}" "${SDK_BOARD_CONFIG_LINK}"
 printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
 printf 'Generated board config: %s\n' "${SDK_GENERATED_BOARD_CONFIG}"
 
-stage "Installing tailscale-ready kernel fragment"
-install -m 0644 "${KERNEL_FRAGMENT}" "${SDK_KERNEL_FRAGMENT_PATH}"
-printf 'Kernel fragment: %s\n' "${SDK_KERNEL_FRAGMENT_PATH}"
+stage "Installing kernel fragments"
+install -m 0644 "${PYMC_KERNEL_FRAGMENT}" "${SDK_PYMC_KERNEL_FRAGMENT_PATH}"
+install -m 0644 "${TAILSCALE_KERNEL_FRAGMENT}" "${SDK_TAILSCALE_KERNEL_FRAGMENT_PATH}"
+printf 'pyMC kernel fragment: %s\n' "${SDK_PYMC_KERNEL_FRAGMENT_PATH}"
+printf 'Tailscale kernel fragment: %s\n' "${SDK_TAILSCALE_KERNEL_FRAGMENT_PATH}"
 
 stage "Generating custom PiMesh DTS profile"
 prepare_custom_pimesh_dts
@@ -534,7 +545,8 @@ fi
   printf 'Board config: %s\n' "${BOARD_CONFIG_REL}"
   printf 'Buildroot defconfig: %s\n' "${BASE_DEFCONFIG}"
   printf 'Buildroot fragment: %s\n' "${FRAGMENT}"
-  printf 'Kernel fragment: %s\n' "${KERNEL_FRAGMENT}"
+  printf 'pyMC kernel fragment: %s\n' "${PYMC_KERNEL_FRAGMENT}"
+  printf 'Tailscale kernel fragment: %s\n' "${TAILSCALE_KERNEL_FRAGMENT}"
   printf 'RK_JOBS: %s\n' "${RK_JOBS}"
   if [ "${RESET_PYTHON_STATE:-0}" = "1" ]; then
     printf 'Reset target Python state: yes\n'
