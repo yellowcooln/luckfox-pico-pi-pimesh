@@ -1,5 +1,5 @@
-menu "yellowcooln external options"
+menu "Luckfox Pico Pi external options"
 
-source "$BR2_EXTERNAL_YELLOWCOOLN_PATH/package/yellowcooln/Config.in"
+source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/Config.in"
 
 endmenu

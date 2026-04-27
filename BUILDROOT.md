@@ -21,7 +21,7 @@ Goals:
   static files copied into the target rootfs
 - `board/luckfox/pico-pi/post-build.sh`
   copies this repo's runtime files into `/opt/scripts` inside the image
-- `package/yellowcooln/*`
+- `package/luckfox-pico-pi/*`
   custom Buildroot Python packages for dependencies missing from upstream Buildroot
 
 ## Vendor Buildroot Workflow

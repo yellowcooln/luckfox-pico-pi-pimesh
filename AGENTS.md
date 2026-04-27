@@ -6,7 +6,7 @@ This repository layers stock upstream `pyMC` support onto the official Luckfox P
 
 - `build/`: image build entrypoints and fragments. Use `build/build-image.sh` for full image builds.
 - `board/luckfox/pico-pi/`: rootfs overlay and post-build hook copied into the final image.
-- `package/yellowcooln/`: custom Buildroot package definitions for Python dependencies not covered upstream.
+- `package/luckfox-pico-pi/`: custom Buildroot package definitions for Python dependencies not covered upstream.
 - `configs/`: Buildroot config fragments merged into the vendor SDK config.
 - `buildroot-manage.sh`: on-device runtime helper shipped inside the image at `/root/scripts`.
 
