@@ -1,17 +1,3 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Codex <codex@openai.com>
-Date: Sun, 27 Apr 2026 19:20:00 -0400
-Subject: [PATCH] pyproject: use legacy license table
-
-The Luckfox SDK's Buildroot setuptools stack rejects the SPDX string form
-used by newer pyproject metadata. Use the older `{text = ...}` form so the
-package can build in this environment.
----
- pyproject.toml | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-diff --git a/pyproject.toml b/pyproject.toml
-index 60a83f7..aa51c4d 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
 @@ -11,7 +11,7 @@ dynamic = ["version"]
@@ -22,6 +8,3 @@ index 60a83f7..aa51c4d 100644
  requires-python = ">=3.9.0"
  authors = [
    {name = "Bartosz Golaszewski", email = "brgl@bgdev.pl"},
--- 
-2.43.0
-
