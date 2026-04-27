@@ -21,10 +21,6 @@ start() {
   fi
 
   wpa_supplicant -B -P "${PIDFILE}" -i "${IFACE}" -c "${CONF}" >/dev/null 2>&1 || return 0
-
-  if command -v udhcpc >/dev/null 2>&1; then
-    udhcpc -i "${IFACE}" -b -q >/dev/null 2>&1 || true
-  fi
 }
 
 stop() {
