@@ -1,0 +1,13 @@
+--- a/setup.py
++++ b/setup.py
+@@ -157,6 +157,8 @@ def fetch_tarball(command):
+                 if sys.version_info >= (3, 11):
+                     import tomllib
+ 
+-                    license_file = tomllib.load(f).get("project").get("license")
++                    license_file = tomllib.load(f).get("project").get("license")
++                    if isinstance(license_file, dict):
++                        license_file = license_file.get("text") or license_file.get("file")
+                 else:  # tomllib isn't standard, fall back to parsing by line
+                     for line in f.readlines():
+                         _line = line.decode()
