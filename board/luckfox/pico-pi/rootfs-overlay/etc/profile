@@ -1,0 +1,18 @@
+#!/bin/sh
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+if [ "$(id -u)" -eq 0 ]; then
+  PS1='# '
+else
+  PS1='$ '
+fi
+export PS1
+
+if [ -d /etc/profile.d ]; then
+  for profile_script in /etc/profile.d/*.sh; do
+    [ -r "${profile_script}" ] || continue
+    . "${profile_script}"
+  done
+  unset profile_script
+fi
