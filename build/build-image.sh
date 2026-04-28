@@ -247,6 +247,26 @@ check_sdk_layout() {
   printf 'Check [OK]: %s\n' "${SDK_DIR}/config/dts_config"
 }
 
+require_buildroot_setting() {
+  config_file=$1
+  setting=$2
+  expected=$3
+
+  if ! grep -q "^${setting}=${expected}\$" "${config_file}"; then
+    fail "Missing required Buildroot setting in ${config_file}: ${setting}=${expected}"
+  fi
+}
+
+check_buildroot_settings() {
+  stage "Checking required Buildroot settings"
+
+  require_buildroot_setting "${SDK_BUILDROOT_DEFCONFIG}" "BR2_PACKAGE_PYTHON3" "y"
+  require_buildroot_setting "${SDK_BUILDROOT_DEFCONFIG}" "BR2_PACKAGE_PYTHON3_SQLITE" "y"
+  require_buildroot_setting "${SDK_BUILDROOT_DEFCONFIG}" "BR2_PACKAGE_SQLITE" "y"
+
+  printf 'Check [OK]: %s enables Python sqlite support\n' "${SDK_BUILDROOT_DEFCONFIG}"
+}
+
 reset_cached_python_state() {
   if [ "${RESET_PYTHON_STATE:-0}" != "1" ]; then
     return 0
@@ -550,6 +570,7 @@ printf 'Merged defconfig: %s\n' "${SDK_BUILDROOT_DEFCONFIG}"
 stage "Validating SDK environment"
 check_host_deps
 check_sdk_layout
+check_buildroot_settings
 reset_cached_python_state
 RK_JOBS_VALUE=$(detect_job_count)
 case "${RK_JOBS_VALUE}" in
