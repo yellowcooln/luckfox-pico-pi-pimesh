@@ -42,6 +42,9 @@ Environment:
   PYMC_GENERATE_CUSTOM_DTS
                      Set to 0 to skip the custom PiMesh DTS generation step.
                      Default: 1
+  IMAGE_ARCHIVE_PREFIX
+                     Prefix used when zipping output/image into <repo>/build.
+                     Default: luckfox-pico-pi-pymc-image
   AUTO_ZIP           Set to 1 to always zip the image output into <repo>/build.
                      Set to 0 to skip zipping without prompting.
   RK_JOBS            Parallel build job count for the Luckfox SDK build.
@@ -92,7 +95,8 @@ prompt_yes_no() {
 
 maybe_zip_artifacts() {
   image_dir="${SDK_DIR}/output/image"
-  archive_name="luckfox-pico-pi-pymc-image-$(date +%Y%m%d-%H%M%S).zip"
+  archive_prefix="${IMAGE_ARCHIVE_PREFIX:-luckfox-pico-pi-pymc-image}"
+  archive_name="${archive_prefix}-$(date +%Y%m%d-%H%M%S).zip"
   archive_path="${REPO_ROOT}/build/${archive_name}"
 
   [ -d "${image_dir}" ] || fail "Missing image output directory: ${image_dir}"
