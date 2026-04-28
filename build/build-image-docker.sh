@@ -65,8 +65,6 @@ fi
 printf '\n==> Building builder image\n'
 # shellcheck disable=SC2086
 "${container_tool}" build ${platform_args} \
-  --build-arg "HOST_UID=${host_uid}" \
-  --build-arg "HOST_GID=${host_gid}" \
   -t "${image_tag}" \
   -f "${SCRIPT_DIR}/Dockerfile" \
   "${REPO_ROOT}"
@@ -74,8 +72,10 @@ printf '\n==> Building builder image\n'
 printf '\n==> Running image build in container\n'
 # shellcheck disable=SC2086
 exec "${container_tool}" run --rm -it ${platform_args} \
+  --user "${host_uid}:${host_gid}" \
   -v "${REPO_ROOT}:/workspace" \
   -w /workspace/build \
+  -e HOME=/tmp/pymc-build-home \
   -e SDK_REPO="${SDK_REPO:-}" \
   -e SDK_REF="${SDK_REF:-}" \
   -e SDK_WORK_DIR="${SDK_WORK_DIR:-}" \

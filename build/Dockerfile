@@ -1,8 +1,6 @@
 FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG HOST_UID=1000
-ARG HOST_GID=1000
 
 RUN apt-get update && apt-get install -y \
   autoconf \
@@ -39,14 +37,11 @@ RUN apt-get update && apt-get install -y \
   zip \
   && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -g "${HOST_GID}" builder \
-  && useradd -m -u "${HOST_UID}" -g "${HOST_GID}" -s /bin/bash builder \
-  && echo 'builder ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/builder \
-  && chmod 0440 /etc/sudoers.d/builder
+RUN mkdir -p /tmp/pymc-build-home \
+  && chmod 0777 /tmp/pymc-build-home
 
 WORKDIR /workspace
-USER builder
 
-ENV HOME=/home/builder
+ENV HOME=/tmp/pymc-build-home
 
 CMD ["/bin/bash"]

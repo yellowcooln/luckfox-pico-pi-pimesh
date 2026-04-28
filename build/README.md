@@ -68,7 +68,7 @@ cd build
 What this wrapper does:
 
 1. builds a local Ubuntu 22.04 builder image with the Luckfox SDK prerequisite packages
-2. creates a container user matching your host UID/GID, so build outputs stay owned by you
+2. runs the container with your host UID/GID, so build outputs stay owned by you
 3. bind-mounts this repo at `/workspace`
 4. runs the normal `./build-image.sh` inside the container
 
