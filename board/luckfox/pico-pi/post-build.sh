@@ -41,6 +41,7 @@ rm -rf "${TARGET_DIR}/root/pymc-repeater-buildroot"
 rm -f "${TARGET_DIR}/root/scripts"
 rm -f "${TARGET_DIR}/usr/local/bin/network-setup.sh"
 rm -f "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
+rm -f "${TARGET_DIR}/etc/init.d/S41dhcpcd"
 
 install -m 0755 "${EXTERNAL_DIR}/buildroot-manage.sh" "${APP_DIR}/buildroot-manage.sh"
 install -m 0755 "${EXTERNAL_DIR}/tailscale-manage.sh" "${APP_DIR}/tailscale-manage.sh"

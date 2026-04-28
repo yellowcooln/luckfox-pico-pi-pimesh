@@ -87,6 +87,17 @@ route_without_metric() {
   trim_route_line "$1" | sed -E 's/ metric [0-9]+//g'
 }
 
+route_src_from_line() {
+  printf '%s\n' "$1" | awk '{
+    for (i = 1; i <= NF; i++) {
+      if ($i == "src" && (i + 1) <= NF) {
+        print $(i + 1)
+        exit
+      }
+    }
+  }'
+}
+
 iface_primary_ipv4() {
   ip -4 addr show dev "$1" 2>/dev/null | awk '/inet / { sub(/\/.*/, "", $2); print $2; exit }'
 }
@@ -101,7 +112,8 @@ sync_default_routes() {
 
   first_line=$(printf '%s\n' "$routes" | sed -n '1p')
   stripped=$(route_without_metric "$first_line")
-  route_src=$(iface_primary_ipv4 "$iface")
+  route_src=$(route_src_from_line "$first_line")
+  [ -n "$route_src" ] || route_src=$(iface_primary_ipv4 "$iface")
   stripped=$(printf '%s\n' "$stripped" | sed -E 's/ src [0-9.]+//g')
   desired=$(trim_route_line "$stripped${route_src:+ src $route_src} metric $metric")
 

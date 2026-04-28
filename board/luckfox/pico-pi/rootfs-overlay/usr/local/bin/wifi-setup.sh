@@ -19,6 +19,19 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
+get_default_wifi_priority() {
+  local default_priority="200"
+
+  if [ -f "$NETWORK_PRIORITY_CONFIG" ]; then
+    # shellcheck disable=SC1090
+    . "$NETWORK_PRIORITY_CONFIG"
+    printf '%s\n' "${WIFI_PRIORITY:-$default_priority}"
+    return 0
+  fi
+
+  printf '%s\n' "$default_priority"
+}
+
 prompt_value() {
   local prompt="$1"
   local default_value="${2:-}"
@@ -32,6 +45,17 @@ prompt_value() {
   IFS= read -r reply || true
   reply=${reply:-$default_value}
   printf '%s\n' "$reply"
+}
+
+get_network_field() {
+  local ssid="$1"
+  local field_index="$2"
+
+  ensure_networks_file
+  awk -F'|' -v ssid="$ssid" -v field_index="$field_index" '
+    /^[[:space:]]*#/ || NF == 0 { next }
+    $1 == ssid { print $field_index; exit }
+  ' "$NETWORKS_FILE"
 }
 
 prompt_secret() {
@@ -101,6 +125,44 @@ show_scan() {
   ' | awk '!seen[$0]++'
 }
 
+choose_ssid_entry_mode() {
+  local choice
+
+  info "Built-in Luckfox Wi-Fi is 2.4 GHz only." >&2
+  info "" >&2
+  info "1) Scan for nearby SSIDs" >&2
+  info "2) Enter SSID manually" >&2
+  choice=$(prompt_value "Selection" "1")
+  case "$choice" in
+    2) printf '%s\n' "manual" ;;
+    *) printf '%s\n' "scan" ;;
+  esac
+}
+
+prompt_ssid_from_user() {
+  local mode="$1"
+  local default_ssid="${2:-}"
+  local ssid=""
+
+  case "$mode" in
+    scan)
+      info "Scanning for 2.4 GHz Wi-Fi networks on $IFACE..." >&2
+      show_scan >&2 || true
+      printf '\n' >&2
+      ssid=$(prompt_value "SSID" "$default_ssid")
+      ;;
+    manual)
+      info "Manual SSID entry selected." >&2
+      ssid=$(prompt_value "SSID" "$default_ssid")
+      ;;
+    *)
+      ssid=$(prompt_value "SSID" "$default_ssid")
+      ;;
+  esac
+
+  printf '%s\n' "$ssid"
+}
+
 set_network() {
   local ssid="$1"
   local psk="$2"
@@ -117,6 +179,21 @@ set_network() {
     END { }
   ' "$NETWORKS_FILE" >"$tmp_file"
   printf '%s|%s|%s\n' "$ssid" "$psk" "$priority" >>"$tmp_file"
+  install -m 0600 "$tmp_file" "$NETWORKS_FILE"
+  rm -f "$tmp_file"
+}
+
+remove_network() {
+  local ssid="$1"
+  local tmp_file
+
+  ensure_networks_file
+  tmp_file=$(mktemp)
+  awk -F'|' -v ssid="$ssid" '
+    /^[[:space:]]*#/ || NF == 0 { print; next }
+    $1 == ssid { next }
+    { print }
+  ' "$NETWORKS_FILE" >"$tmp_file"
   install -m 0600 "$tmp_file" "$NETWORKS_FILE"
   rm -f "$tmp_file"
 }
@@ -173,21 +250,17 @@ show_status() {
   fi
 }
 
-main() {
-  local ssid psk priority scan_choice
+add_or_update_network() {
+  local ssid psk priority mode
 
   need_cmd python3
   need_cmd iw
 
   [ -d "/sys/class/net/$IFACE" ] || fail "Wi-Fi interface not found: $IFACE"
 
-  info "Scanning for Wi-Fi networks on $IFACE..."
-  show_scan || true
-  printf '\n'
-
-  scan_choice=$(prompt_value "SSID")
-  [ -n "$scan_choice" ] || fail "SSID is required."
-  ssid="$scan_choice"
+  mode=$(choose_ssid_entry_mode)
+  ssid=$(prompt_ssid_from_user "$mode")
+  [ -n "$ssid" ] || fail "SSID is required."
 
   psk=${WIFI_PASSWORD:-}
   if [ -z "$psk" ]; then
@@ -195,8 +268,8 @@ main() {
   fi
   [ -n "$psk" ] || fail "Wi-Fi password is required."
 
-  priority=$(prompt_value "Priority" "100")
-  [ -n "$priority" ] || priority=100
+  priority=$(prompt_value "Wi-Fi Priority" "$(get_default_wifi_priority)")
+  [ -n "$priority" ] || priority="$(get_default_wifi_priority)"
 
   set_network "$ssid" "$psk" "$priority"
   render_wpa
@@ -207,11 +280,58 @@ main() {
   show_status
 }
 
+edit_network() {
+  local current_ssid ssid psk priority mode
+
+  need_cmd python3
+  need_cmd iw
+  ensure_networks_file
+
+  info "Saved Wi-Fi networks:"
+  awk -F'|' '
+    /^[[:space:]]*#/ || NF == 0 { next }
+    { printf "  - %s (priority=%s)\n", $1, ($3 ? $3 : "50") }
+  ' "$NETWORKS_FILE"
+  printf '\n'
+
+  current_ssid=$(prompt_value "SSID to edit")
+  [ -n "$current_ssid" ] || return 0
+
+  if [ -z "$(get_network_field "$current_ssid" 1)" ]; then
+    fail "Saved Wi-Fi network not found: $current_ssid"
+  fi
+
+  mode=$(choose_ssid_entry_mode)
+  ssid=$(prompt_ssid_from_user "$mode" "$current_ssid")
+  [ -n "$ssid" ] || fail "SSID is required."
+
+  psk=$(prompt_secret "Wi-Fi password for $ssid")
+  [ -n "$psk" ] || fail "Wi-Fi password is required."
+
+  priority=$(prompt_value "Wi-Fi Priority" "$(get_network_field "$current_ssid" 3)")
+  [ -n "$priority" ] || priority="$(get_default_wifi_priority)"
+
+  if [ "$ssid" != "$current_ssid" ]; then
+    remove_network "$current_ssid"
+  fi
+  set_network "$ssid" "$psk" "$priority"
+
+  render_wpa
+  restart_wifi
+
+  info ""
+  info "Updated Wi-Fi network: $ssid"
+  show_status
+}
+
 case "${1:-}" in
   status)
     show_status
     ;;
+  edit)
+    edit_network
+    ;;
   *)
-    main
+    add_or_update_network
     ;;
 esac

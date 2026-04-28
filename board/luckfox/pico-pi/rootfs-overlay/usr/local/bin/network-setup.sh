@@ -20,6 +20,25 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
+pause_return() {
+  local tty_path="/dev/tty"
+
+  if dialog_enabled; then
+    dialog --title "Network Setup" --msgbox "Done.\n\nPress Enter to return to the menu." 7 44 >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if [ -r "$tty_path" ] && [ -w "$tty_path" ]; then
+    printf '\nPress Enter to return to the menu...' >"$tty_path"
+    IFS= read -r _ <"$tty_path" || true
+    printf '\n' >"$tty_path"
+  else
+    printf '\nPress Enter to return to the menu...'
+    IFS= read -r _ || true
+    printf '\n'
+  fi
+}
+
 load_config() {
   [ -f "$CONFIG_FILE" ] || fail "Missing config: $CONFIG_FILE"
   # shellcheck disable=SC1090
@@ -195,10 +214,13 @@ list_wifi_networks() {
 }
 
 add_wifi_network() {
-  local ssid psk priority
-
   [ -x "$WIFI_SETUP_SH" ] || fail "Missing helper: $WIFI_SETUP_SH"
   "$WIFI_SETUP_SH"
+}
+
+edit_wifi_network() {
+  [ -x "$WIFI_SETUP_SH" ] || fail "Missing helper: $WIFI_SETUP_SH"
+  "$WIFI_SETUP_SH" edit
 }
 
 remove_wifi_network() {
@@ -218,6 +240,20 @@ remove_wifi_network() {
   install -m 0600 "$tmp" "$WIFI_NETWORKS_FILE"
   rm -f "$tmp"
   info "Removed Wi-Fi network: $selection"
+}
+
+show_iface_ipv4_summary() {
+  local iface="$1"
+  local addrs addr_count
+
+  addrs=$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4}' | paste -sd ' ' -)
+  [ -n "$addrs" ] || return 0
+  printf '%s ipv4: %s\n' "$iface" "$addrs"
+
+  addr_count=$(printf '%s\n' "$addrs" | wc -w | tr -d ' ')
+  if [ "${addr_count:-0}" -gt 1 ]; then
+    printf 'warning: %s has multiple IPv4 addresses\n' "$iface"
+  fi
 }
 
 configure_policy() {
@@ -265,12 +301,19 @@ apply_now() {
 show_status() {
   [ -x "$NETWORK_PRIORITY_SH" ] || fail "Missing helper: $NETWORK_PRIORITY_SH"
   "$NETWORK_PRIORITY_SH" status
+  printf '\nIPv4 addresses:\n'
+  load_config
+  for iface in "${ETH_INTERFACE:-eth0}" "${WIFI_INTERFACE:-wlan0}" ${LTE_INTERFACES:-}; do
+    iface_exists "$iface" || continue
+    show_iface_ipv4_summary "$iface"
+  done
   printf '\nSaved Wi-Fi networks:\n'
   list_wifi_networks
 }
 
 main_menu() {
   local choice
+  local action_ok
 
   while :; do
     if dialog_enabled; then
@@ -278,6 +321,7 @@ main_menu() {
         status "Show current network status" \
         policy "Configure Ethernet/Wi-Fi/LTE priority policy" \
         add-wifi "Add or update a Wi-Fi network" \
+        edit-wifi "Edit a saved Wi-Fi network" \
         remove-wifi "Remove a saved Wi-Fi network" \
         list-wifi "List saved Wi-Fi networks" \
         apply "Render config and apply policy now" \
@@ -287,52 +331,71 @@ main_menu() {
 1) Show current network status
 2) Configure Ethernet/Wi-Fi/LTE priority policy
 3) Add or update a Wi-Fi network
-4) Remove a saved Wi-Fi network
-5) List saved Wi-Fi networks
-6) Render config and apply policy now
-7) Exit
+4) Edit a saved Wi-Fi network
+5) Remove a saved Wi-Fi network
+6) List saved Wi-Fi networks
+7) Render config and apply policy now
+8) Exit
 EOF
-      choice=$(prompt_value "Selection" "7") || break
+      choice=$(prompt_value "Selection" "8") || break
       case "$choice" in
         1) choice=status ;;
         2) choice=policy ;;
         3) choice=add-wifi ;;
-        4) choice=remove-wifi ;;
-        5) choice=list-wifi ;;
-        6) choice=apply ;;
+        4) choice=edit-wifi ;;
+        5) choice=remove-wifi ;;
+        6) choice=list-wifi ;;
+        7) choice=apply ;;
         *) choice=exit ;;
       esac
     fi
 
+    action_ok=1
     case "$choice" in
       status)
-        show_status
+        if ! show_status; then
+          action_ok=0
+        fi
         ;;
       policy)
-        configure_policy
+        if ! configure_policy; then
+          action_ok=0
+        fi
         ;;
       add-wifi)
-        add_wifi_network
+        if ! add_wifi_network; then
+          action_ok=0
+        fi
+        ;;
+      edit-wifi)
+        if ! edit_wifi_network; then
+          action_ok=0
+        fi
         ;;
       remove-wifi)
-        remove_wifi_network
+        if ! remove_wifi_network; then
+          action_ok=0
+        fi
         ;;
       list-wifi)
-        list_wifi_networks
+        if ! list_wifi_networks; then
+          action_ok=0
+        fi
         ;;
       apply)
-        apply_now
+        if ! apply_now; then
+          action_ok=0
+        fi
         ;;
       exit)
         break
         ;;
     esac
 
-    if dialog_enabled; then
-      dialog --title "Network Setup" --msgbox "Done." 6 30 >/dev/null 2>&1 || true
-    else
-      printf '\n'
+    if [ "$action_ok" -ne 1 ]; then
+      printf '\nAction failed.\n' >&2
     fi
+    pause_return
   done
 }
 
@@ -345,6 +408,9 @@ case "${1:-menu}" in
     ;;
   add-wifi)
     add_wifi_network
+    ;;
+  edit-wifi)
+    edit_wifi_network
     ;;
   remove-wifi)
     remove_wifi_network
@@ -359,7 +425,7 @@ case "${1:-menu}" in
     main_menu
     ;;
   *)
-    echo "Usage: $0 {menu|status|policy|add-wifi|remove-wifi|list-wifi|apply}"
+    echo "Usage: $0 {menu|status|policy|add-wifi|edit-wifi|remove-wifi|list-wifi|apply}"
     exit 1
     ;;
 esac
