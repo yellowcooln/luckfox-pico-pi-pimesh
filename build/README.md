@@ -83,6 +83,28 @@ Kernel side:
 
 This does not bundle the `tailscale` binary itself. It makes the image ready to install and run Tailscale cleanly after flashing.
 
+## Building a More Blank Image
+
+If you want a more blank image without the shipped helper scripts in `/opt/scripts`
+and `/root/scripts`, remove them from the repo before building:
+
+- scripts staged by the rootfs overlay live under:
+  - `board/luckfox/pico-pi/rootfs-overlay/`
+- scripts copied in explicitly at image build time are installed from:
+  - `board/luckfox/pico-pi/post-build.sh`
+
+In practice, the main helpers currently come from:
+
+- `board/luckfox/pico-pi/rootfs-overlay/usr/local/bin/`
+- `board/luckfox/pico-pi/rootfs-overlay/usr/local/sbin/`
+- repo-root helpers copied by `post-build.sh`, such as:
+  - `buildroot-manage.sh`
+  - `tailscale-manage.sh`
+  - `pymc-console-webui.sh`
+
+If you remove the rootfs overlay script files but leave `post-build.sh` unchanged,
+the build will fail when it tries to install files that no longer exist.
+
 To validate the setup without starting a full build:
 
 ```sh

@@ -1,8 +1,0 @@
-config BR2_PACKAGE_PYTHON_GPIOD
-	bool "python-gpiod"
-	select BR2_PACKAGE_LIBGPIOD
-	help
-	  Python bindings for libgpiod.
-
-	  https://pypi.org/project/gpiod/
-

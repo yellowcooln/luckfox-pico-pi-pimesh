@@ -39,6 +39,9 @@ Environment:
   TAILSCALE_KERNEL_FRAGMENT
                      Kernel config fragment for Tailscale-specific support.
                      Default: <repo>/build/luckfox_pico_pi_tailscale_kernel.fragment
+  PYMC_GENERATE_CUSTOM_DTS
+                     Set to 0 to skip the custom PiMesh DTS generation step.
+                     Default: 1
   AUTO_ZIP           Set to 1 to always zip the image output into <repo>/build.
                      Set to 0 to skip zipping without prompting.
   RK_JOBS            Parallel build job count for the Luckfox SDK build.
@@ -519,8 +522,12 @@ printf 'pyMC kernel fragment: %s\n' "${SDK_PYMC_KERNEL_FRAGMENT_PATH}"
 printf 'Connectivity kernel fragment: %s\n' "${SDK_CONNECTIVITY_KERNEL_FRAGMENT_PATH}"
 printf 'Tailscale kernel fragment: %s\n' "${SDK_TAILSCALE_KERNEL_FRAGMENT_PATH}"
 
-stage "Generating custom PiMesh DTS profile"
-prepare_custom_pimesh_dts
+if [ "${PYMC_GENERATE_CUSTOM_DTS:-1}" = "1" ]; then
+  stage "Generating custom PiMesh DTS profile"
+  prepare_custom_pimesh_dts
+else
+  stage "Skipping custom PiMesh DTS profile"
+fi
 
 stage "Linking SDK kernel configuration"
 link_sdk_config_files

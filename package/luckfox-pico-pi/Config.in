@@ -6,7 +6,6 @@ source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-jaraco
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-jaraco-text/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-jaraco-collections/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-smbus2/Config.in"
-source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-gpiod/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-adafruit-pureio/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-adafruit-gpio/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-mock/Config.in"
