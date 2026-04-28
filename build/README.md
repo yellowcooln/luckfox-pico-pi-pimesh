@@ -90,6 +90,13 @@ BOARD_CONFIG_REL=project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_L
 ./build-image-docker.sh
 ```
 
+For the dedicated Pico Zero Docker wrapper:
+
+```sh
+cd build
+./build-image-pico-zero-docker.sh
+```
+
 Notes:
 
 - the container path is built for Ubuntu 22.04, same as the VM flow
