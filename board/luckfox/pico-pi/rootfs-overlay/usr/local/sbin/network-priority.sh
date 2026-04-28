@@ -2,6 +2,7 @@
 set -eu
 
 CONFIG_FILE=${NETWORK_PRIORITY_CONFIG:-/etc/default/network-priority}
+LTE_INPUT_CHAIN="NETWORK_PRIORITY_LTE_INPUT"
 
 log() {
   printf '%s\n' "$1"
@@ -152,6 +153,17 @@ collect_usable_lte_ifaces() {
   done
 }
 
+collect_lte_firewall_ifaces() {
+  local lte_iface
+
+  for lte_iface in ${LTE_INTERFACES:-}; do
+    iface_exists "$lte_iface" || continue
+    iface_has_ipv4 "$lte_iface" || continue
+    iface_has_default_route "$lte_iface" || continue
+    printf '%s\n' "$lte_iface"
+  done
+}
+
 iface_in_list() {
   local needle="$1"
   shift
@@ -159,6 +171,57 @@ iface_in_list() {
     [ "$iface" = "$needle" ] && return 0
   done
   return 1
+}
+
+iptables_cmd() {
+  command -v iptables >/dev/null 2>&1 || return 1
+  printf '%s\n' "$(command -v iptables)"
+}
+
+ensure_lte_input_chain() {
+  local ipt="$1"
+
+  "$ipt" -nL "$LTE_INPUT_CHAIN" >/dev/null 2>&1 || "$ipt" -N "$LTE_INPUT_CHAIN"
+  "$ipt" -F "$LTE_INPUT_CHAIN"
+  if ! "$ipt" -A "$LTE_INPUT_CHAIN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; then
+    "$ipt" -A "$LTE_INPUT_CHAIN" -m state --state ESTABLISHED,RELATED -j ACCEPT
+  fi
+  "$ipt" -A "$LTE_INPUT_CHAIN" -j DROP
+}
+
+remove_lte_input_jumps() {
+  local ipt="$1"
+  local lte_iface
+
+  for lte_iface in ${LTE_INTERFACES:-}; do
+    while "$ipt" -C INPUT -i "$lte_iface" -j "$LTE_INPUT_CHAIN" >/dev/null 2>&1; do
+      "$ipt" -D INPUT -i "$lte_iface" -j "$LTE_INPUT_CHAIN" >/dev/null 2>&1 || break
+    done
+  done
+}
+
+apply_lte_input_policy() {
+  local ipt lte_iface
+
+  ipt=$(iptables_cmd) || return 0
+
+  remove_lte_input_jumps "$ipt"
+
+  if [ "${BLOCK_LTE_INBOUND:-1}" != "1" ]; then
+    "$ipt" -F "$LTE_INPUT_CHAIN" >/dev/null 2>&1 || true
+    "$ipt" -X "$LTE_INPUT_CHAIN" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  ensure_lte_input_chain "$ipt"
+
+  while IFS= read -r lte_iface; do
+    [ -n "$lte_iface" ] || continue
+    "$ipt" -C INPUT -i "$lte_iface" -j "$LTE_INPUT_CHAIN" >/dev/null 2>&1 || \
+      "$ipt" -I INPUT 1 -i "$lte_iface" -j "$LTE_INPUT_CHAIN"
+  done <<EOF
+$(collect_lte_firewall_ifaces)
+EOF
 }
 
 apply_metrics() {
@@ -215,10 +278,13 @@ EOF
 }
 
 show_status() {
+  local ipt
+
   load_config
   printf 'enabled=%s\n' "${ENABLED:-0}"
   printf 'eth=%s wifi=%s lte=%s\n' "${ETH_INTERFACE:-eth0}" "${WIFI_INTERFACE:-wlan0}" "${LTE_INTERFACES:-}"
   printf 'metrics eth=%s wifi=%s lte=%s\n' "${ETH_PRIORITY:-100}" "${WIFI_PRIORITY:-200}" "${LTE_PRIORITY:-300}"
+  printf 'block_lte_inbound=%s\n' "${BLOCK_LTE_INBOUND:-1}"
   printf '\nCurrent default routes:\n'
   ip route show default 2>/dev/null || true
   printf '\nLink state:\n'
@@ -228,11 +294,18 @@ show_status() {
     cat "/sys/class/net/$iface/operstate" 2>/dev/null || printf 'unknown'
     printf '\n'
   done
+  ipt=$(iptables_cmd || true)
+  if [ -n "${ipt:-}" ]; then
+    printf '\nLTE inbound firewall:\n'
+    "$ipt" -S INPUT 2>/dev/null | grep "$LTE_INPUT_CHAIN" || printf 'no LTE INPUT jump rules\n'
+    "$ipt" -S "$LTE_INPUT_CHAIN" 2>/dev/null || true
+  fi
 }
 
 run_once() {
   load_config
-  is_enabled || exit 0
+  apply_lte_input_policy
+  is_enabled || return 0
   render_wpa_conf
   ensure_wifi_started
   apply_metrics
@@ -240,7 +313,9 @@ run_once() {
 
 run_daemon() {
   load_config
-  is_enabled || exit 0
+  if [ "${BLOCK_LTE_INBOUND:-1}" != "1" ] && ! is_enabled; then
+    exit 0
+  fi
   while :; do
     run_once
     sleep "${CHECK_INTERVAL:-15}"

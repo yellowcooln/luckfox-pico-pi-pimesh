@@ -13,6 +13,7 @@ LTE_PRIORITY=300
 
 ENABLE_WIFI=1
 ENABLE_LTE_FALLBACK=0
+BLOCK_LTE_INBOUND=1
 
 WPA_CONF="/etc/wpa_supplicant.conf"
 WIFI_NETWORKS_FILE="/etc/network-priority.wifi"

@@ -257,7 +257,7 @@ show_iface_ipv4_summary() {
 }
 
 configure_policy() {
-  local enabled wifi_enabled lte_enabled eth_prio wifi_prio lte_prio
+  local enabled wifi_enabled lte_enabled block_lte_inbound eth_prio wifi_prio lte_prio
 
   load_config
 
@@ -276,6 +276,11 @@ configure_policy() {
   else
     lte_enabled=0
   fi
+  if confirm_yes_no "Block new inbound connections on LTE interfaces?"; then
+    block_lte_inbound=1
+  else
+    block_lte_inbound=0
+  fi
 
   eth_prio=$(prompt_value "Ethernet priority metric" "${ETH_PRIORITY:-100}") || return 0
   wifi_prio=$(prompt_value "Wi-Fi priority metric" "${WIFI_PRIORITY:-200}") || return 0
@@ -284,6 +289,7 @@ configure_policy() {
   set_config_value ENABLED "$enabled"
   set_config_value ENABLE_WIFI "$wifi_enabled"
   set_config_value ENABLE_LTE_FALLBACK "$lte_enabled"
+  set_config_value BLOCK_LTE_INBOUND "$block_lte_inbound"
   set_config_value ETH_PRIORITY "$eth_prio"
   set_config_value WIFI_PRIORITY "$wifi_prio"
   set_config_value LTE_PRIORITY "$lte_prio"
