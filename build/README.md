@@ -52,6 +52,51 @@ cd pymc-repeater-buildroot-pico-pi/build
 ./build-image.sh
 ```
 
+## Docker Build
+
+You can run the same build in Docker or Podman instead of a dedicated Ubuntu VM.
+This is useful when you want to use faster host hardware while still keeping the
+Luckfox SDK dependencies isolated.
+
+From the repo root:
+
+```sh
+cd build
+./build-image-docker.sh
+```
+
+What this wrapper does:
+
+1. builds a local Ubuntu 22.04 builder image with the Luckfox SDK prerequisite packages
+2. creates a container user matching your host UID/GID, so build outputs stay owned by you
+3. bind-mounts this repo at `/workspace`
+4. runs the normal `./build-image.sh` inside the container
+
+Useful examples:
+
+```sh
+cd build
+SKIP_BUILD=1 ./build-image-docker.sh
+```
+
+```sh
+cd build
+DOCKER_PLATFORM=linux/amd64 ./build-image-docker.sh
+```
+
+```sh
+cd build
+BOARD_CONFIG_REL=project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Zero-IPC.mk \
+./build-image-docker.sh
+```
+
+Notes:
+
+- the container path is built for Ubuntu 22.04, same as the VM flow
+- the Docker build context ignores `build/.work` so the SDK checkout is not copied into the image layer
+- if your host is not x86_64, you may need `DOCKER_PLATFORM=linux/amd64`; that will work, but QEMU emulation may be slower
+- the full SDK build still writes to this repo’s `build/.work/` directory, just from inside the container
+
 What the script does:
 
 1. clones or refreshes the official Luckfox SDK into `build/.work/luckfox-pico`
