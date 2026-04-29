@@ -267,6 +267,39 @@ check_buildroot_settings() {
   printf 'Check [OK]: %s enables Python sqlite support\n' "${SDK_BUILDROOT_DEFCONFIG}"
 }
 
+find_buildroot_output_dir() {
+  buildroot_src_dir="${SDK_DIR}/sysdrv/source/buildroot"
+  [ -d "${buildroot_src_dir}" ] || fail "Missing Buildroot source directory: ${buildroot_src_dir}"
+
+  buildroot_tree=$(find "${buildroot_src_dir}" -maxdepth 1 -mindepth 1 -type d -name 'buildroot-*' | head -n 1 || true)
+  [ -n "${buildroot_tree}" ] || fail "Could not locate vendor Buildroot tree under ${buildroot_src_dir}"
+
+  buildroot_output_dir="${buildroot_tree}/output"
+  [ -d "${buildroot_output_dir}" ] || fail "Missing Buildroot output directory: ${buildroot_output_dir}"
+
+  printf '%s\n' "${buildroot_output_dir}"
+}
+
+check_target_python_sqlite_runtime() {
+  stage "Checking built Python sqlite runtime"
+
+  buildroot_output_dir=$(find_buildroot_output_dir)
+  target_dir="${buildroot_output_dir}/target"
+  [ -d "${target_dir}" ] || fail "Missing Buildroot target rootfs: ${target_dir}"
+
+  python_dir=$(find "${target_dir}/usr/lib" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | head -n 1 || true)
+  [ -n "${python_dir}" ] || fail "Could not locate target Python stdlib directory under ${target_dir}/usr/lib"
+
+  sqlite_init="${python_dir}/sqlite3/__init__.py"
+  [ -f "${sqlite_init}" ] || fail "Missing target Python sqlite3 stdlib file: ${sqlite_init}"
+
+  sqlite_ext=$(find "${python_dir}/lib-dynload" -maxdepth 1 -type f -name '_sqlite3*.so' | head -n 1 || true)
+  [ -n "${sqlite_ext}" ] || fail "Missing target Python _sqlite3 extension under ${python_dir}/lib-dynload"
+
+  printf 'Check [OK]: %s\n' "${sqlite_init}"
+  printf 'Check [OK]: %s\n' "${sqlite_ext}"
+}
+
 reset_cached_python_state() {
   if [ "${RESET_PYTHON_STATE:-0}" != "1" ]; then
     return 0
@@ -615,6 +648,8 @@ stage "Building Luckfox image"
   ./build.sh
   ./build.sh firmware
 )
+
+check_target_python_sqlite_runtime
 
 stage "Build complete"
 printf 'Artifacts: %s/output/image\n' "${SDK_DIR}"
