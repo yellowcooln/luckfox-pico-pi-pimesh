@@ -130,7 +130,6 @@ fi
 
 mkdir -p "${TARGET_DIR}/etc"
 cat > "${TARGET_DIR}/etc/pymc-image-build-id" <<EOF
-image_name=Luckfox pyMC Repeater Buildroot
 image_version=0.6.9
 login_user=root
 login_password=luckfox
