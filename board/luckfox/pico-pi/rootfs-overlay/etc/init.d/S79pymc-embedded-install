@@ -26,6 +26,10 @@ ensure_defaults() {
   if [ -z "${PYMC_SKIP_BUILDROOT_DEP_INSTALL:-}" ]; then
     PYMC_SKIP_BUILDROOT_DEP_INSTALL="1"
   fi
+
+  if [ -z "${PYMC_DEFER_SETUP:-}" ]; then
+    PYMC_DEFER_SETUP="1"
+  fi
 }
 
 already_installed() {
@@ -44,6 +48,7 @@ run_install() {
     PYMC_RADIO_PRESET="${PYMC_RADIO_PRESET:-}" \
     PYMC_CORE_LOCAL_DIR="${PYMC_CORE_LOCAL_DIR}" \
     PYMC_SKIP_BUILDROOT_DEP_INSTALL="${PYMC_SKIP_BUILDROOT_DEP_INSTALL}" \
+    PYMC_DEFER_SETUP="${PYMC_DEFER_SETUP}" \
     bash "${MANAGE_SCRIPT}" install >>"${LOGFILE}" 2>&1
 }
 
