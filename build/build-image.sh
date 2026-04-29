@@ -267,6 +267,33 @@ check_buildroot_settings() {
   printf 'Check [OK]: %s enables Python sqlite support\n' "${SDK_BUILDROOT_DEFCONFIG}"
 }
 
+ensure_sqlite_deserialize_support() {
+  sqlite_mk="${SDK_DIR}/sysdrv/source/buildroot/buildroot-2023.02.6/package/sqlite/sqlite.mk"
+  [ -f "${sqlite_mk}" ] || fail "Missing Buildroot sqlite package file: ${sqlite_mk}"
+
+  if grep -q 'SQLITE_ENABLE_DESERIALIZE' "${sqlite_mk}"; then
+    return 0
+  fi
+
+  stage "Enabling SQLite serialize support for Python"
+
+  python3 - <<'PY' "${sqlite_mk}"
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+needle = 'ifeq ($(BR2_PACKAGE_SQLITE_ENABLE_JSON1),y)\nSQLITE_CFLAGS += -DSQLITE_ENABLE_JSON1\nendif\n'
+replacement = needle + '\nSQLITE_CFLAGS += -DSQLITE_ENABLE_DESERIALIZE\n'
+if needle not in text:
+    raise SystemExit(f"Did not find expected insertion point in {path}")
+path.write_text(text.replace(needle, replacement, 1))
+PY
+
+  grep -q 'SQLITE_ENABLE_DESERIALIZE' "${sqlite_mk}" || fail "Failed to patch ${sqlite_mk} with SQLITE_ENABLE_DESERIALIZE"
+  printf 'Check [OK]: %s enables SQLITE_ENABLE_DESERIALIZE\n' "${sqlite_mk}"
+}
+
 find_buildroot_output_dir() {
   buildroot_src_dir="${SDK_DIR}/sysdrv/source/buildroot"
   [ -d "${buildroot_src_dir}" ] || fail "Missing Buildroot source directory: ${buildroot_src_dir}"
@@ -544,6 +571,7 @@ SDK_TAILSCALE_KERNEL_FRAGMENT_NAME="luckfox_tailscale.config"
 SDK_TAILSCALE_KERNEL_FRAGMENT_PATH="${SDK_DIR}/sysdrv/source/kernel/arch/arm/configs/${SDK_TAILSCALE_KERNEL_FRAGMENT_NAME}"
 
 need_cmd sed
+need_cmd python3
 need_cmd tail
 sync_sdk_repo "${SDK_REPO}" "${SDK_REF}" "${SDK_DIR}"
 
@@ -578,6 +606,8 @@ install -m 0644 "${TAILSCALE_KERNEL_FRAGMENT}" "${SDK_TAILSCALE_KERNEL_FRAGMENT_
 printf 'pyMC kernel fragment: %s\n' "${SDK_PYMC_KERNEL_FRAGMENT_PATH}"
 printf 'Connectivity kernel fragment: %s\n' "${SDK_CONNECTIVITY_KERNEL_FRAGMENT_PATH}"
 printf 'Tailscale kernel fragment: %s\n' "${SDK_TAILSCALE_KERNEL_FRAGMENT_PATH}"
+
+ensure_sqlite_deserialize_support
 
 if [ "${PYMC_GENERATE_CUSTOM_DTS:-1}" = "1" ]; then
   stage "Generating custom PiMesh DTS profile"
