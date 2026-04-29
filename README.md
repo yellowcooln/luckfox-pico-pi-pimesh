@@ -1,35 +1,35 @@
 # pymc-repeater-buildroot-pico-pi
 
-Buildroot image and first-boot tooling for running `pyMC_Repeater` on a
-Luckfox Pico Pi.
+Buildroot image tooling and first-boot bootstrap for running `pyMC_Repeater`
+on Luckfox Pico Pi hardware.
 
-This repo packages a Buildroot-friendly `pyMC_Repeater` setup for a Luckfox Pico Pi, aimed at the upstream `pyMC_Repeater` `dev` branch and not tied to a single radio model.
+This repo is a Luckfox SDK `BR2_EXTERNAL` layer plus a small set of image-side
+helpers. It does not replace the vendor SDK or board support package.
 
-The shipped image is a normal Buildroot appliance using the Luckfox vendor init
-and networking stack.
+What this repo is responsible for:
 
-The image-side helper in `/root/scripts` is only a
-bootstrap/proxy. It clones `pyMC_Repeater` into the current user's home
-directory, then runs the repo's own `buildroot-manage.sh` when present.
+- image build wrappers under `build/`
+- Buildroot package/config fragments
+- rootfs overlay files and post-build hooks
+- the thin `/root/scripts/buildroot-manage.sh` bootstrap shipped inside the image
+- first-boot image hardening and metadata
 
-GitHub repo:
+What it does not do:
 
-- `https://github.com/yellowcooln/pymc-repeater-buildroot-pico-pi`
+- carry long-lived local forks of `pyMC_core` or `pyMC_Repeater`
+- replace the Luckfox bootloader/kernel/partition layout
+- own the full runtime UX after the upstream repo checkout is installed
 
-For building a flashable Luckfox image with this repo layered onto the vendor Buildroot tree, use the files in `build/`.
+The default shipped image uses the Luckfox vendor init/network stack and is
+expected to allow first login over SSH with:
 
-Helper script overview:
-
-- [SCRIPTS.md](./SCRIPTS.md)
-
-Radio-specific configuration is intentionally deferred to the normal `pyMC_Repeater` setup flow.
-
-The built image is intended to ship with SSH login enabled and a known default credential:
-`root` / `luckfox`.
+- user: `root`
+- password: `luckfox`
 
 ## Using The Image
 
-If you are using one of our prebuilt images, this is the normal first-boot flow.
+If you are using one of the flashed images built from this repo, this is the
+normal first-boot flow.
 
 1. Log in over SSH:
 
@@ -42,7 +42,7 @@ Default login:
 - user: `root`
 - password: `luckfox`
 
-2. Go to the helper directory that ships inside the image:
+2. Go to the shipped helper directory:
 
 ```sh
 cd /root/scripts
@@ -61,16 +61,19 @@ sh buildroot-manage.sh advert
 What this does:
 
 - `doctor` checks the image baseline needed by the Buildroot install flow
-- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater` and hands off to the repo's own `buildroot-manage.sh install`
-- `start` proxies to the repo's Buildroot service wrapper
+- `install` clones `pyMC_Repeater` into `~/pyMC_Repeater` and hands off to the repo checkout's own `buildroot-manage.sh install`
+- `start` proxies to the repo-side Buildroot service wrapper
 - `wait-ready` waits for the local API to come up
 - `advert` runs the known-good `pymc-cli advert` test path
 
 The image also ships with:
 
-- Buildroot init scripts
+- Luckfox vendor init scripts
 - Luckfox vendor networking
-- `wpa_supplicant`, `iw`, and `htop`
+- OpenSSH enabled
+- `git`, `jq`, `wget`, `dialog`, `yq`
+- Python 3 with the native modules needed by the upstream Buildroot install flow
+- `wpa_supplicant`, `iw`, and the other baseline networking/debug tools from the image fragment
 
 The helper files are preloaded in the image at:
 
@@ -81,15 +84,24 @@ The upstream repo checkout is expected to live at:
 
 - `/root/pyMC_Repeater`
 
+The image also writes a small metadata marker at:
+
+- `/etc/pymc-image-build-id`
+
+Current fields:
+
+- `image_name`
+- `image_version`
+
+That file is used as the Buildroot-image marker by `pyMC_Repeater`, and the
+`image_version` is exposed through repeater stats/API when present.
+
 ## What The Image Assumes
 
 - Buildroot image with Python `3.10+`
-- `git`
 - writable filesystem
-- if you want the fallback `pip` path:
-  - `python3 -m pip`
-  - Python development headers (`Python.h`)
-  - native build tools (`gcc`, `make`)
+- a normal Luckfox vendor userspace
+- radio-specific setup is still deferred to the upstream `pyMC_Repeater` repo flow
 
 ## Commands
 
@@ -103,7 +115,7 @@ sh buildroot-manage.sh wait-ready
 sh buildroot-manage.sh advert
 ```
 
-Main commands:
+Main commands exposed by the image bootstrap:
 
 - `install`
 - `upgrade`
@@ -124,7 +136,8 @@ Main commands:
 
 ## Radio Selection
 
-The repo-side Buildroot installer supports Luckfox-specific radio profile selection after install.
+The repo-side Buildroot installer supports Luckfox-specific radio profile
+selection after install.
 
 Current choices:
 
@@ -140,6 +153,13 @@ During install, the repo-side Buildroot manager asks for:
 and writes those directly into `/etc/pymc_repeater/config.yaml` so the service
 does not need to rely on the web setup wizard.
 
+For Pico Pi profiles, the repo-side JSON currently also injects:
+
+- `sx1262.radio_timing_delay: 0.012`
+
+That is how the minimal Pico Pi SX1262 timing override is applied now. It is
+config-driven from `pyMC_Repeater`, not hardcoded in this image repo.
+
 You can rerun the full config flow later with:
 
 ```sh
@@ -154,21 +174,35 @@ sh buildroot-manage.sh radio-profile
 
 ## Runtime Notes
 
-The runtime helper now treats process start and API readiness as separate things.
+The image-side `buildroot-manage.sh` is intentionally thin. It is only
+responsible for:
+
+- cloning or refreshing the upstream `pyMC_Repeater` checkout
+- handing off to the repo checkout's `buildroot-manage.sh` when present
+- providing a small set of bootstrap-only commands like `doctor`, `wait-ready`, and `advert`
+
+The runtime helper treats process start and API readiness as separate things.
 
 That matches the failure mode seen during bring-up: `pyMC_Repeater` can have a live process before port `8000` is actually ready to accept `pymc-cli` connections. Use `wait-ready` before CLI-driven smoke tests, and `advert` if you want the known-good `pymc-cli advert` path wrapped into one command.
 
-Board-specific radio pin mapping, DTS edits, and any temporary DEBUG-mode
-bring-up steps should stay outside the default image and runtime scripts.
-Luckfox GPIO handling that previously required local `pyMC_core` patching is
-now expected to come from upstream `pyMC_core`, not this repo. The baseline
-here is: boot a stock upstream-ready `pyMC` image, run the repo's
-`buildroot-manage.sh install`, start the service cleanly, wait for the API to
-be ready, and only then do radio-specific testing.
+Current image hardening also includes:
+
+- `/etc/init.d/S50telnet` removed
+- `/etc/init.d/S41dhcpcd` removed to avoid duplicate-IP behavior with vendor `udhcpc`
+- `/var/empty` fixed in post-fakeroot so `sshd` starts cleanly
+
+The baseline expectation is:
+
+1. flash the image
+2. SSH in as `root`
+3. run the bootstrap install flow
+4. wait for the API to be ready
+5. do radio-specific testing after the upstream repo install is live
 
 ## Scope
 
-This repo is about building a usable Luckfox Pico Pi Buildroot image for stock upstream `pyMC_Repeater`.
+This repo is about building a usable Luckfox Pico Pi Buildroot image for stock
+upstream `pyMC_Repeater`.
 
 It intentionally keeps the image-side helper thin and expects ongoing runtime
 behavior to come from the pulled `pyMC_Repeater` repo, not from baked image

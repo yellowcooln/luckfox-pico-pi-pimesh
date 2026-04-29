@@ -8,6 +8,7 @@ This repo is still not the board support package by itself. The final bootable e
 - the extra Python package definitions
 - the rootfs overlay
 - the post-build install step
+- the post-fakeroot fixups
 - the `pyMC` package fragment
 - a small kernel fragment to make the image Tailscale-ready by default
 - a helper script that downloads the SDK into a repo-local workspace and drives the full build
@@ -41,6 +42,20 @@ That board config currently uses:
 ```text
 RK_BUILDROOT_DEFCONFIG=luckfox_pico_w_defconfig
 ```
+
+The canonical image fragment merged into that defconfig is:
+
+```text
+build/luckfox_pico_pi_pymc.fragment
+```
+
+That fragment is what enables:
+
+- this repo's rootfs overlay
+- `post-build.sh`
+- `post-fakeroot.sh`
+- the shipped package set, including `yq`
+- Python SQLite support validation
 
 ## Build Flow
 
@@ -116,6 +131,13 @@ What the script does:
 8. runs lightweight SDK sanity checks from the wrapper
 9. runs `./build.sh`
 10. runs `./build.sh firmware`
+11. validates that the built target rootfs really contains Python `sqlite3`
+    stdlib and `_sqlite3` extension support before allowing the build to pass
+
+The full image build currently also patches the reused SDK tree as needed for:
+
+- Python SQLite support under the vendor Buildroot/Python toolchain
+- cached package rebuild resets when that SDK-side SQLite patch is first applied
 
 ## Tailscale Baseline
 
@@ -156,6 +178,19 @@ In practice, the main helpers currently come from:
 
 If you remove the rootfs overlay script files but leave `post-build.sh` unchanged,
 the build will fail when it tries to install files that no longer exist.
+
+If you want a more minimal runtime image, this is the main split to keep in mind:
+
+- image repo responsibility:
+  - bootstrap helper in `/root/scripts`
+  - network helpers
+  - image metadata
+  - base packages and hardening
+- upstream repo responsibility after install:
+  - main repeater UX
+  - radio profile flow
+  - API/UI
+  - service lifecycle details
 
 To validate the setup without starting a full build:
 
@@ -204,6 +239,15 @@ build/.work/luckfox-pico/output/image/
 
 Luckfox's flash documentation expects `update.img` to be present for eMMC flashing.
 
+If `AUTO_ZIP=1` is enabled or you answer yes to the prompt, the wrapper also
+creates a local archive in `build/` using:
+
+- `luckfox-pico-pi-pymc-image-<timestamp>.zip`
+- `luckfox-pico-zero-pymc-image-<timestamp>.zip`
+
+The zip is created in your local repo checkout even when building inside Docker,
+because the repo is bind-mounted into the container at `/workspace`.
+
 ## Manual Flow
 
 If you want to do the same process by hand:
@@ -233,3 +277,18 @@ Official references:
 - https://wiki.luckfox.com/Luckfox-Pico-Pi/SDK
 - https://wiki.luckfox.com/Luckfox-Pico-Pi/Flash-image/
 - https://github.com/LuckfoxTECH/luckfox-pico
+
+## Image Behavior
+
+Current shipped image behavior from this repo:
+
+- SSH enabled with bootstrap login `root / luckfox`
+- Telnet removed
+- `dhcpcd` startup removed so vendor `udhcpc` is the only DHCP client
+- `/etc/pymc-image-build-id` written with:
+  - `image_name=Luckfox pyMC Repeater Buildroot`
+  - `image_version=0.6.9`
+- `/root/scripts/buildroot-manage.sh` is only a bootstrap/proxy, not the full
+  runtime manager
+- `yq` is shipped in the image so upstream Buildroot config flows can preserve
+  comments in `/etc/pymc_repeater/config.yaml`
