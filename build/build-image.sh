@@ -55,6 +55,8 @@ Environment:
 EOF
 }
 
+SQLITE_SERIALIZE_PATCHED=0
+
 stage() {
   printf '\n==> %s\n' "$1"
 }
@@ -291,6 +293,7 @@ path.write_text(text.replace(needle, replacement, 1))
 PY
 
   grep -q 'SQLITE_ENABLE_DESERIALIZE' "${sqlite_mk}" || fail "Failed to patch ${sqlite_mk} with SQLITE_ENABLE_DESERIALIZE"
+  SQLITE_SERIALIZE_PATCHED=1
   printf 'Check [OK]: %s enables SQLITE_ENABLE_DESERIALIZE\n' "${sqlite_mk}"
 }
 
@@ -328,7 +331,7 @@ check_target_python_sqlite_runtime() {
 }
 
 reset_cached_python_state() {
-  if [ "${RESET_PYTHON_STATE:-0}" != "1" ]; then
+  if [ "${RESET_PYTHON_STATE:-0}" != "1" ] && [ "${SQLITE_SERIALIZE_PATCHED}" != "1" ]; then
     return 0
   fi
 
@@ -339,18 +342,23 @@ reset_cached_python_state() {
   buildroot_output_dir="${buildroot_tree}/output"
   [ -d "${buildroot_output_dir}" ] || return 0
 
-  stage "Resetting cached target Python state"
+  if [ "${SQLITE_SERIALIZE_PATCHED}" = "1" ]; then
+    stage "Resetting cached SQLite and Python build state"
+  else
+    stage "Resetting cached target Python state"
+  fi
 
   find "${buildroot_output_dir}/build" -maxdepth 1 -mindepth 1 -type d \
-    \( -name 'python-*' -o -name 'python3-*' \) \
+    \( -name 'sqlite-*' -o -name 'python-*' -o -name 'python3-*' \) \
     ! -name 'host-python*' \
     -exec rm -rf {} +
 
   for python_root in "${buildroot_output_dir}/target/usr/lib" "${buildroot_output_dir}/staging/usr/lib"; do
     [ -d "${python_root}" ] || continue
     find "${python_root}" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | while IFS= read -r python_dir; do
-      rm -rf "${python_dir}/site-packages" "${python_dir}/lib-dynload"
+      rm -rf "${python_dir}/site-packages" "${python_dir}/lib-dynload" "${python_dir}/sqlite3"
     done
+    rm -f "${python_root}"/libsqlite3.so*
   done
 
   rm -f \
