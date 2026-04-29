@@ -9,6 +9,29 @@ SDK_DIR=$(CDPATH= cd -- "${TARGET_DIR}/../../../../../.." && pwd)
 SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
 SDK_OVERLAY_DIR="${SDK_DIR}/project/cfg/BoardConfig_IPC/overlay"
 
+sync_python_sqlite_stdlib() {
+  python_dir=$(find "${TARGET_DIR}/usr/lib" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | head -n 1 || true)
+  [ -n "${python_dir}" ] || return 0
+
+  sqlite_init="${python_dir}/sqlite3/__init__.py"
+  [ -f "${sqlite_init}" ] && return 0
+
+  buildroot_output_dir=$(CDPATH= cd -- "${TARGET_DIR}/.." && pwd)
+  python_build_dir=$(find "${buildroot_output_dir}/build" -maxdepth 1 -mindepth 1 -type d -name 'python3-*' | head -n 1 || true)
+  [ -n "${python_build_dir}" ] || {
+    printf '%s\n' "Missing Buildroot Python build directory under ${buildroot_output_dir}/build" >&2
+    exit 1
+  }
+
+  source_sqlite_dir="${python_build_dir}/Lib/sqlite3"
+  [ -f "${source_sqlite_dir}/__init__.py" ] || {
+    printf '%s\n' "Missing Python sqlite3 stdlib source: ${source_sqlite_dir}" >&2
+    exit 1
+  }
+
+  cp -a "${source_sqlite_dir}" "${python_dir}/sqlite3"
+}
+
 restore_vendor_overlays() {
   [ -f "${SDK_BOARD_CONFIG_LINK}" ] || {
     printf '%s\n' "Missing SDK board config link: ${SDK_BOARD_CONFIG_LINK}" >&2
@@ -56,6 +79,8 @@ mkdir -p "${TARGET_DIR}/usr/local/bin" "${TARGET_DIR}/usr/local/sbin"
 install -m 0755 "${EXTERNAL_DIR}/board/luckfox/pico-pi/rootfs-overlay/usr/local/sbin/network-priority.sh" "${TARGET_DIR}/usr/local/sbin/network-priority.sh"
 ln -snf /opt/scripts/network-setup.sh "${TARGET_DIR}/usr/local/bin/network-setup.sh"
 ln -snf /opt/scripts/wifi-setup.sh "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
+
+sync_python_sqlite_stdlib
 
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/scripts "${TARGET_DIR}/root/scripts"
