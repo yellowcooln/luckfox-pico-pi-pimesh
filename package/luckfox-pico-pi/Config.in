@@ -1,3 +1,4 @@
+source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/yq/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-httpagentparser/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-cherrypy-cors/Config.in"
 source "$BR2_EXTERNAL_LUCKFOX_PICO_PI_PATH/package/luckfox-pico-pi/python-autocommand/Config.in"
