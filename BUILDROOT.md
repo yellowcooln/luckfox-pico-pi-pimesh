@@ -154,9 +154,9 @@ Current runtime expectations:
 
 There is also an embedded-image build variant now:
 
-- it bundles `pyMC_Repeater` and `pyMC_core` source checkouts directly into the
-  image
-- it installs from those local sources on first boot using the upstream
-  Buildroot installer
-- it still installs into the normal runtime locations expected by later
-  repeater upgrades
+- it bakes the repeater runtime directly into `/opt/pymc_repeater`
+- it ships the managed `pyMC_Repeater` checkout under
+  `/opt/pymc_repeater/pyMC_Repeater`
+- it boots straight into the repeater web setup flow without a first-boot
+  install
+- it does not ship `/root/pyMC_core` or a first-boot install hook

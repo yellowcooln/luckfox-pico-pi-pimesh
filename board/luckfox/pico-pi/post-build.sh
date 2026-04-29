@@ -10,49 +10,191 @@ SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
 SDK_OVERLAY_DIR="${SDK_DIR}/project/cfg/BoardConfig_IPC/overlay"
 PYMC_EMBED_STAGE_DIR="${PYMC_EMBED_STAGE_DIR:-}"
 PYMC_EMBED_INSTALL="${PYMC_EMBED_INSTALL:-0}"
+PYMC_EMBED_RUNTIME_SITE_DIR="${PYMC_EMBED_STAGE_DIR}/venv-site-packages"
 
-install_embedded_runtime_payload() {
+target_python_dir() {
+  find "${TARGET_DIR}/usr/lib" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | head -n 1 || true
+}
+
+install_baked_runtime_payload() {
   [ "${PYMC_EMBED_INSTALL}" = "1" ] || return 0
   [ -n "${PYMC_EMBED_STAGE_DIR}" ] || {
-    printf '%s\n' "Embedded install requested but PYMC_EMBED_STAGE_DIR is empty" >&2
+    printf '%s\n' "Embedded runtime requested but PYMC_EMBED_STAGE_DIR is empty" >&2
     exit 1
   }
 
   repeater_src="${PYMC_EMBED_STAGE_DIR}/pyMC_Repeater"
-  core_src="${PYMC_EMBED_STAGE_DIR}/pyMC_core"
+  runtime_site_dir="${PYMC_EMBED_RUNTIME_SITE_DIR}"
+  python_dir=$(target_python_dir)
+  [ -n "${python_dir}" ] || {
+    printf '%s\n' "Missing target Python directory under ${TARGET_DIR}/usr/lib" >&2
+    exit 1
+  }
+  python_version=$(basename "${python_dir}")
+  venv_dir="${TARGET_DIR}/opt/pymc_repeater/venv"
+  venv_site_dir="${venv_dir}/lib/${python_version}/site-packages"
+  data_dir="${TARGET_DIR}/var/lib/pymc_repeater"
+  config_dir="${TARGET_DIR}/etc/pymc_repeater"
+
   [ -f "${repeater_src}/buildroot-manage.sh" ] || {
     printf '%s\n' "Missing embedded pyMC_Repeater checkout: ${repeater_src}" >&2
     exit 1
   }
-  [ -f "${core_src}/pyproject.toml" ] || {
-    printf '%s\n' "Missing embedded pyMC_core checkout: ${core_src}" >&2
+  [ -d "${runtime_site_dir}" ] || {
+    printf '%s\n' "Missing baked runtime site-packages: ${runtime_site_dir}" >&2
     exit 1
   }
 
-  mkdir -p "${TARGET_DIR}/root"
-  rm -rf "${TARGET_DIR}/root/pyMC_Repeater" "${TARGET_DIR}/root/pyMC_core"
-  cp -a "${repeater_src}" "${TARGET_DIR}/root/pyMC_Repeater"
-  cp -a "${core_src}" "${TARGET_DIR}/root/pyMC_core"
-  chmod 0755 "${TARGET_DIR}/root/pyMC_Repeater/buildroot-manage.sh"
+  rm -rf "${TARGET_DIR}/opt/pymc_repeater"
+  mkdir -p "${TARGET_DIR}/opt/pymc_repeater" "${venv_site_dir}" "${data_dir}" "${config_dir}" "${TARGET_DIR}/var/log/pymc_repeater"
 
-  install -m 0755 \
-    "${EXTERNAL_DIR}/board/luckfox/pico-pi/rootfs-overlay/etc/init.d/S79pymc-embedded-install" \
-    "${TARGET_DIR}/etc/init.d/S79pymc-embedded-install"
+  cp -a "${repeater_src}" "${TARGET_DIR}/opt/pymc_repeater/pyMC_Repeater"
+  chmod 0755 "${TARGET_DIR}/opt/pymc_repeater/pyMC_Repeater/buildroot-manage.sh"
 
-  mkdir -p "${TARGET_DIR}/etc/default"
-  cat > "${TARGET_DIR}/etc/default/pymc-embedded-install" <<EOF
-PYMC_NODE_NAME="${PYMC_EMBED_NODE_NAME:-}"
-PYMC_ADMIN_PASSWORD="${PYMC_EMBED_ADMIN_PASSWORD:-}"
-PYMC_BUILDROOT_BOARD="${PYMC_EMBED_BUILDROOT_BOARD:-}"
-PYMC_RADIO_PRESET="${PYMC_EMBED_RADIO_PRESET:-}"
-PYMC_CORE_LOCAL_DIR="/root/pyMC_core"
-PYMC_SKIP_BUILDROOT_DEP_INSTALL="1"
-PYMC_DEFER_SETUP="1"
+  cp -a "${runtime_site_dir}/." "${venv_site_dir}/"
+  printf '%s\n' "/usr/lib/${python_version}/site-packages" > "${venv_site_dir}/buildroot-system-site-packages.pth"
+
+  mkdir -p "${venv_dir}/bin"
+  ln -snf /usr/bin/python3 "${venv_dir}/bin/python"
+  ln -snf /usr/bin/python3 "${venv_dir}/bin/python3"
+  cat > "${venv_dir}/bin/pip" <<'EOF'
+#!/bin/sh
+exec "$(dirname "$0")/python" -m pip "$@"
 EOF
+  cat > "${venv_dir}/bin/pip3" <<'EOF'
+#!/bin/sh
+exec "$(dirname "$0")/python" -m pip "$@"
+EOF
+  chmod 0755 "${venv_dir}/bin/pip" "${venv_dir}/bin/pip3"
+  cat > "${venv_dir}/pyvenv.cfg" <<EOF
+home = /usr/bin
+include-system-site-packages = false
+version = ${python_version#python}
+EOF
+
+  cp "${repeater_src}/config.yaml.example" "${config_dir}/config.yaml.example"
+  cp "${repeater_src}/config.yaml.example" "${config_dir}/config.yaml"
+  cp "${repeater_src}/radio-settings.json" "${data_dir}/"
+  cp "${repeater_src}/radio-settings-buildroot.json" "${data_dir}/"
+  cp "${repeater_src}/radio-presets.json" "${data_dir}/"
+
+  python3 - "${config_dir}/config.yaml" "${data_dir}/radio-settings.json" "${data_dir}/radio-settings-buildroot.json" "${data_dir}/radio-presets.json" "${PYMC_EMBED_BUILDROOT_BOARD:-}" "${PYMC_EMBED_RADIO_PRESET:-}" <<'PY'
+import json
+import sys
+import yaml
+
+config_path, radio_settings_path, buildroot_settings_path, presets_path, board_choice, preset_choice = sys.argv[1:7]
+
+with open(config_path, "r", encoding="utf-8") as fh:
+    data = yaml.safe_load(fh) or {}
+with open(radio_settings_path, "r", encoding="utf-8") as fh:
+    radio_settings = json.load(fh)
+with open(buildroot_settings_path, "r", encoding="utf-8") as fh:
+    buildroot_settings = json.load(fh)
+with open(presets_path, "r", encoding="utf-8") as fh:
+    presets_data = json.load(fh)
+
+buildroot_hardware = buildroot_settings.get("buildroot_hardware") or {}
+default_board = buildroot_settings.get("default_board")
+board_key = board_choice or default_board
+if board_key not in buildroot_hardware:
+    raise SystemExit(f"Unknown Buildroot board: {board_key}")
+
+board = buildroot_hardware[board_key]
+hardware = ((radio_settings.get("hardware") or {}).get(board.get("hardware_id")) or {}).copy()
+if not hardware:
+    raise SystemExit(f"Missing hardware config: {board.get('hardware_id')}")
+sx1262 = hardware.copy()
+sx1262.update(board.get("sx1262_overrides") or {})
+
+entries = ((presets_data.get("config") or {}).get("suggested_radio_settings") or {}).get("entries", [])
+default_preset = buildroot_settings.get("default_radio_preset")
+preset_title = preset_choice or default_preset
+preset = next((entry for entry in entries if entry.get("title") == preset_title), None)
+if not preset:
+    raise SystemExit(f"Unknown radio preset: {preset_title}")
+
+radio = data.setdefault("radio", {})
+radio["frequency"] = int(round(float(preset.get("frequency", 0)) * 1_000_000))
+radio["spreading_factor"] = int(preset.get("spreading_factor", 7))
+radio["bandwidth"] = int(round(float(preset.get("bandwidth", 0)) * 1000))
+radio["coding_rate"] = int(preset.get("coding_rate", 5))
+radio["tx_power"] = int(board.get("tx_power", radio.get("tx_power", 22)))
+
+data["radio_type"] = hardware.get("radio_type", "sx1262")
+
+sx = data.setdefault("sx1262", {})
+sx.setdefault("bus_id", 0)
+sx.setdefault("cs_id", 0)
+sx.setdefault("txled_pin", -1)
+sx.setdefault("rxled_pin", -1)
+sx.setdefault("is_waveshare", False)
+for key, value in sx1262.items():
+    sx[key] = value
+
+if data["radio_type"] == "sx1262_ch341":
+    ch341 = data.setdefault("ch341", {})
+    for key in ("vid", "pid"):
+        if key in hardware:
+            ch341[key] = hardware[key]
+
+with open(config_path, "w", encoding="utf-8") as fh:
+    yaml.safe_dump(data, fh, sort_keys=False)
+PY
+
+  cat > "${TARGET_DIR}/etc/init.d/S80pymc-repeater" <<'EOF'
+#!/bin/sh
+DAEMON="/opt/pymc_repeater/venv/bin/python"
+PIDFILE="/var/run/pymc-repeater.pid"
+LOGFILE="/var/log/pymc_repeater/repeater.log"
+WORKDIR="/var/lib/pymc_repeater"
+CONFIG_FILE="/etc/pymc_repeater/config.yaml"
+RUN_AS="root"
+
+start() {
+    mkdir -p "$(dirname "$PIDFILE")" "$(dirname "$LOGFILE")" "$WORKDIR"
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "pymc-repeater is already running."
+        return 0
+    fi
+    start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$PIDFILE" \
+        --chuid "$RUN_AS" --exec /bin/sh -- -c "cd \"$WORKDIR\" && exec \"$DAEMON\" -m repeater.main --config \"$CONFIG_FILE\" >>\"$LOGFILE\" 2>&1"
+}
+
+stop() {
+    if [ ! -f "$PIDFILE" ]; then
+        echo "pymc-repeater is not running."
+        return 0
+    fi
+    start-stop-daemon --stop --quiet --retry 5 --pidfile "$PIDFILE" >/dev/null 2>&1 || true
+    rm -f "$PIDFILE"
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "pymc-repeater is running."
+        return 0
+    fi
+    echo "pymc-repeater is stopped."
+    return 1
+}
+
+case "${1:-}" in
+    start) start ;;
+    stop) stop ;;
+    restart) stop; start ;;
+    status) status ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+EOF
+  chmod 0755 "${TARGET_DIR}/etc/init.d/S80pymc-repeater"
 }
 
 sync_python_sqlite_stdlib() {
-  python_dir=$(find "${TARGET_DIR}/usr/lib" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | head -n 1 || true)
+  python_dir=$(target_python_dir)
   [ -n "${python_dir}" ] || return 0
 
   sqlite_init="${python_dir}/sqlite3/__init__.py"
@@ -75,7 +217,7 @@ sync_python_sqlite_stdlib() {
 }
 
 sync_python_sqlite_extension() {
-  python_dir=$(find "${TARGET_DIR}/usr/lib" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | head -n 1 || true)
+  python_dir=$(target_python_dir)
   [ -n "${python_dir}" ] || return 0
 
   sqlite_ext=$(find "${python_dir}/lib-dynload" -maxdepth 1 -type f -name '_sqlite3*.so' | head -n 1 || true)
@@ -127,6 +269,7 @@ mkdir -p "${APP_DIR}"
 rm -rf "${APP_DIR}/shims"
 rm -rf "${TARGET_DIR}/opt/pymc-repeater-buildroot"
 rm -rf "${TARGET_DIR}/root/pymc-repeater-buildroot"
+rm -rf "${TARGET_DIR}/root/pyMC_Repeater" "${TARGET_DIR}/root/pyMC_core"
 rm -f "${TARGET_DIR}/root/scripts"
 rm -f "${TARGET_DIR}/usr/local/bin/network-setup.sh"
 rm -f "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
@@ -150,7 +293,7 @@ ln -snf /opt/scripts/wifi-setup.sh "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
 
 sync_python_sqlite_stdlib
 sync_python_sqlite_extension
-install_embedded_runtime_payload
+install_baked_runtime_payload
 
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/scripts "${TARGET_DIR}/root/scripts"

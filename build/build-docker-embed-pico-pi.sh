@@ -8,7 +8,7 @@ PYMC_EMBED_REPEATER_REPO="${PYMC_EMBED_REPEATER_REPO:-https://github.com/rightup
 PYMC_EMBED_REPEATER_REF="${PYMC_EMBED_REPEATER_REF:-dev}"
 PYMC_EMBED_CORE_REPO="${PYMC_EMBED_CORE_REPO:-https://github.com/rightup/pyMC_core.git}"
 PYMC_EMBED_CORE_REF="${PYMC_EMBED_CORE_REF:-dev}"
-IMAGE_ARCHIVE_PREFIX="${IMAGE_ARCHIVE_PREFIX:-luckfox-pico-pi-pymc-embedded-image}"
+IMAGE_ARCHIVE_PREFIX="${IMAGE_ARCHIVE_PREFIX:-luckfox-pico-pi-pymc-preinstalled-image}"
 
 export PYMC_EMBED_INSTALL
 export PYMC_EMBED_REPEATER_REPO

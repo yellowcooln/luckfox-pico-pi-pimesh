@@ -8,28 +8,27 @@ API_PORT="${API_PORT:-8000}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 PYMC_REPEATER_REPO="${PYMC_REPEATER_REPO:-https://github.com/rightup/pyMC_Repeater.git}"
 PYMC_REPEATER_REF="${PYMC_REPEATER_REF:-dev}"
-DEFAULT_REPEATER_HOME="${HOME:-/root}"
 if [ "$(id -u 2>/dev/null || echo 1)" = "0" ]; then
-  DEFAULT_REPEATER_HOME="/root"
+  DEFAULT_REPEATER_DIR="/opt/pymc_repeater/pyMC_Repeater"
+else
+  DEFAULT_REPEATER_DIR="${HOME:-/root}/pyMC_Repeater"
 fi
-PYMC_REPEATER_HOME="${PYMC_REPEATER_HOME:-${DEFAULT_REPEATER_HOME}}"
-PYMC_REPEATER_DIR="${PYMC_REPEATER_DIR:-${PYMC_REPEATER_HOME}/pyMC_Repeater}"
-PYMC_EMBEDDED_MARKER="${PYMC_REPEATER_DIR}/.pymc-embedded-checkout"
+PYMC_REPEATER_DIR="${PYMC_REPEATER_DIR:-${DEFAULT_REPEATER_DIR}}"
 
 usage() {
   cat <<'EOF'
 Usage: sh buildroot-manage.sh <command>
 
-This script is only a Buildroot image bootstrap/proxy. It clones pyMC_Repeater
-into `/root` when run as root, otherwise into the current user's home
-directory, and then hands off to the repo's Buildroot-specific
-`buildroot-manage.sh` when present. If the repo does not ship that file yet, it
-falls back to the repo's stock `manage.sh`.
+This script is only a Buildroot image bootstrap/proxy. On shipped images it
+keeps the managed checkout under `/opt/pymc_repeater/pyMC_Repeater` when run as
+root, otherwise under the current user's home directory, and then hands off to
+the repo's Buildroot-specific `buildroot-manage.sh` when present. If the repo
+does not ship that file yet, it falls back to the repo's stock `manage.sh`.
 
 Commands:
   doctor      Check image prerequisites for upstream pyMC install
-  install     Clone/update ~/pyMC_Repeater and run the repo install flow
-  upgrade     Refresh ~/pyMC_Repeater and run the repo upgrade flow
+  install     Clone/update the managed pyMC_Repeater checkout and run the repo install flow
+  upgrade     Refresh the managed pyMC_Repeater checkout and run the repo upgrade flow
   config      Run the repo Buildroot config flow
   configure   Same as config
   radio-profile
@@ -43,8 +42,8 @@ Commands:
   debug       Run the repo debug flow
   wait-ready  Wait for the local pyMC API port to open
   advert      Wait for the API, then run "pymc-cli advert"
-  repo-path   Print the upstream pyMC_Repeater checkout path
-  repo-sync   Clone or refresh the upstream pyMC_Repeater checkout only
+  repo-path   Print the managed pyMC_Repeater checkout path
+  repo-sync   Clone or refresh the managed pyMC_Repeater checkout only
 EOF
 }
 
@@ -87,12 +86,6 @@ ensure_base_tools() {
 
 clone_or_refresh_repo() {
   force_sync=${1:-0}
-
-  if [ -f "${PYMC_EMBEDDED_MARKER}" ] && [ "${force_sync}" != "1" ]; then
-    stage "Using embedded pyMC_Repeater checkout"
-    info "${PYMC_REPEATER_DIR}"
-    return 0
-  fi
 
   if [ -d "${PYMC_REPEATER_DIR}/.git" ]; then
     stage "Refreshing pyMC_Repeater"

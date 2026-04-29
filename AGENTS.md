@@ -17,7 +17,7 @@ Core model:
 
 - this repo builds and hardens the image
 - the image ships a thin bootstrap helper at `/root/scripts/buildroot-manage.sh`
-- that helper clones `pyMC_Repeater` into `/root/pyMC_Repeater`
+- that helper manages `pyMC_Repeater` under `/opt/pymc_repeater/pyMC_Repeater`
 - the real runtime flow then hands off to the upstream repo's own
   `buildroot-manage.sh`
 
@@ -39,15 +39,14 @@ Built images from this repo are expected to ship with:
   `/etc/pymc_repeater/config.yaml`
 - Python SQLite runtime support present and validated at build time
 
-For the embedded-image variant, built images are also expected to ship with:
+For the preinstalled-image variant, built images are also expected to ship with:
 
-- `/root/pyMC_Repeater`
-- `/root/pyMC_core`
-- a first-boot init hook that runs the upstream Buildroot installer locally
-- the same final runtime layout as a normal upstream Buildroot install:
-  - `/opt/pymc_repeater`
-  - `/etc/pymc_repeater`
-  - `/etc/init.d/S80pymc-repeater`
+- `/opt/pymc_repeater/venv`
+- `/opt/pymc_repeater/pyMC_Repeater`
+- `/etc/pymc_repeater`
+- `/etc/init.d/S80pymc-repeater`
+- no `/root/pyMC_core`
+- no first-boot installer hook
 
 Do not make changes that silently regress any of those image guarantees.
 
@@ -66,7 +65,7 @@ Key paths:
 - `build/build-image-pico-zero-docker.sh`
   Docker wrapper for the Pico Zero build path
 - `build/build-docker-embed-pico-pi.sh`
-  Docker wrapper for the embedded-runtime Pico Pi image
+  Docker wrapper for the preinstalled-runtime Pico Pi image
 - `build/luckfox_pico_pi_pymc.fragment`
   canonical Buildroot fragment for this repo
 - `board/luckfox/pico-pi/rootfs-overlay/`
@@ -172,6 +171,8 @@ sh buildroot-manage.sh advert
 - It clones `pyMC_Repeater` from:
   - `PYMC_REPEATER_REPO=https://github.com/rightup/pyMC_Repeater.git`
   - `PYMC_REPEATER_REF=dev`
+- On shipped images running as `root`, the managed checkout lives under:
+  - `/opt/pymc_repeater/pyMC_Repeater`
 - It prefers the repo checkout's `buildroot-manage.sh`, and falls back to
   `manage.sh` only if the Buildroot-specific helper is absent.
 - `doctor` checks for the baseline runtime modules and tools the upstream
@@ -179,8 +180,8 @@ sh buildroot-manage.sh advert
 - `wait-ready` exists because a running process is not the same thing as API
   readiness on port `8000`.
 - `advert` is a known-good smoke test wrapper around `pymc-cli advert`.
-- embedded images intentionally skip the first-boot git clone by using the
-  bundled `/root/pyMC_Repeater` checkout and local `pyMC_core` source
+- preinstalled images bake the runtime into `/opt/pymc_repeater` and ship the
+  managed repeater checkout under `/opt/pymc_repeater/pyMC_Repeater`
 
 ## Current Upstream Integration Assumptions
 

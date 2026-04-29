@@ -119,15 +119,13 @@ cd build
 ./build-image-pico-zero-docker.sh
 ```
 
-For the embedded wrapper, these optional environment variables control the
-bundled runtime checkout and first-boot defaults:
+For the preinstalled-runtime wrapper, these optional environment variables
+control the bundled runtime checkout and baked radio baseline:
 
 - `PYMC_EMBED_REPEATER_REPO`
 - `PYMC_EMBED_REPEATER_REF`
 - `PYMC_EMBED_CORE_REPO`
 - `PYMC_EMBED_CORE_REF`
-- `PYMC_EMBED_NODE_NAME`
-- `PYMC_EMBED_ADMIN_PASSWORD`
 - `PYMC_EMBED_BUILDROOT_BOARD`
 - `PYMC_EMBED_RADIO_PRESET`
 
@@ -157,8 +155,8 @@ The full image build currently also patches the reused SDK tree as needed for:
 
 - Python SQLite support under the vendor Buildroot/Python toolchain
 - cached package rebuild resets when that SDK-side SQLite patch is first applied
-- optional embedded `pyMC_Repeater` / `pyMC_core` source staging for the
-  first-boot auto-install image variant
+- optional preinstalled `pyMC_Repeater` / `pyMC_core` source staging for the
+  baked-runtime image variant
 
 ## Tailscale Baseline
 

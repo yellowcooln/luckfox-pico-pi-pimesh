@@ -80,9 +80,9 @@ The helper files are preloaded in the image at:
 - `/opt/scripts`
 - `/root/scripts`
 
-The upstream repo checkout is expected to live at:
+The managed upstream repo checkout is expected to live at:
 
-- `/root/pyMC_Repeater`
+- `/opt/pymc_repeater/pyMC_Repeater`
 
 The image also writes a small metadata marker at:
 
@@ -100,13 +100,15 @@ There are now two image modes in this repo:
 
 - bootstrap image
   - ships the thin `/root/scripts/buildroot-manage.sh` helper
-  - clones `pyMC_Repeater` on first install
-- embedded image
-  - bundles `pyMC_Repeater` and `pyMC_core` source checkouts in the image
-  - auto-runs the upstream Buildroot install flow on first boot from the local
-    checkouts
-  - keeps the installed runtime in the normal locations expected by the
-    upstream upgrade/UI flow
+  - clones or refreshes `pyMC_Repeater` into `/opt/pymc_repeater/pyMC_Repeater`
+    when run as `root`
+- preinstalled image
+  - bakes the repeater runtime directly into `/opt/pymc_repeater`
+  - ships the managed repo checkout at `/opt/pymc_repeater/pyMC_Repeater`
+    for later updates
+  - boots directly into the repeater web UI without a first-boot install step
+  - leaves the default setup credentials in place so the device lands on
+    `/setup`
 
 ## What The Image Assumes
 
@@ -203,7 +205,7 @@ Current image hardening also includes:
 - `/etc/init.d/S41dhcpcd` removed to avoid duplicate-IP behavior with vendor `udhcpc`
 - `/var/empty` fixed in post-fakeroot so `sshd` starts cleanly
 
-The baseline expectation is:
+For the bootstrap image, the baseline expectation is:
 
 1. flash the image
 2. SSH in as `root`
@@ -211,17 +213,16 @@ The baseline expectation is:
 4. wait for the API to be ready
 5. do radio-specific testing after the upstream repo install is live
 
-For the embedded-image variant built from `build/build-docker-embed-pico-pi.sh`,
-the image also ships:
+For the preinstalled-image variant built from
+`build/build-docker-embed-pico-pi.sh`, the image ships:
 
-- `/root/pyMC_Repeater`
-- `/root/pyMC_core`
-- a first-boot init hook that runs the upstream Buildroot install locally from
-  those bundled checkouts
+- `/opt/pymc_repeater/venv`
+- `/opt/pymc_repeater/pyMC_Repeater`
+- `/etc/pymc_repeater/config.yaml`
+- `/etc/init.d/S80pymc-repeater`
 
-That path is designed so the box can boot straight into a working repeater
-without requiring a first-boot git clone, while still leaving later update
-behavior in the normal upstream install layout.
+That path is designed so the box boots straight into the web setup flow with no
+first-boot install, no `/root/pyMC_core`, and no on-device dependency download.
 
 ## Scope
 
@@ -229,5 +230,5 @@ This repo is about building a usable Luckfox Pico Pi Buildroot image for stock
 upstream `pyMC_Repeater`.
 
 It intentionally keeps the image-side helper thin and expects ongoing runtime
-behavior to come from the pulled `pyMC_Repeater` repo, not from baked image
-scripts.
+behavior to come from the managed `pyMC_Repeater` repo checkout, not from large
+image-only runtime forks.

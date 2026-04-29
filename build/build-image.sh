@@ -51,8 +51,9 @@ Environment:
                      Default: detected via nproc/getconf, else 1.
   RESET_PYTHON_STATE Set to 1 to clear cached target Python build/output state.
                      Default: 0
-  PYMC_EMBED_INSTALL Set to 1 to bundle embedded pyMC source checkouts and
-                     auto-install them on first boot.
+  PYMC_EMBED_INSTALL Set to 1 to bake a preinstalled pyMC runtime into the
+                     image so the device boots directly into the web setup
+                     flow without downloading or installing on first boot.
                      Default: 0
   PYMC_EMBED_REPEATER_REPO
                      Repo URL used for the embedded pyMC_Repeater checkout.
@@ -68,17 +69,13 @@ Environment:
                      Branch, tag, or commit for the embedded pyMC_core
                      checkout.
                      Default: dev
-  PYMC_EMBED_NODE_NAME
-                     Optional default repeater node name for embedded install.
-                     Default: derived from device hostname on first boot.
-  PYMC_EMBED_ADMIN_PASSWORD
-                     Optional default admin password for embedded install.
-                     Default: luckfox
   PYMC_EMBED_BUILDROOT_BOARD
-                     Optional embedded Buildroot radio profile key, e.g.
-                     luckfox-pimesh-v2.
+                     Optional baked-runtime Buildroot radio profile key, e.g.
+                     luckfox-pimesh-v2. Defaults to the Buildroot radio JSON
+                     default_board entry.
   PYMC_EMBED_RADIO_PRESET
-                     Optional embedded radio preset title.
+                     Optional baked-runtime radio preset title. Defaults to the
+                     Buildroot radio JSON default_radio_preset entry.
   SKIP_BUILD         Set to 1 to stop after check/info validation.
 EOF
 }
@@ -601,7 +598,7 @@ sync_repo_checkout() {
 prepare_embed_runtime_sources() {
   [ "${PYMC_EMBED_INSTALL}" = "1" ] || return 0
 
-  stage "Preparing embedded pyMC runtime sources"
+  stage "Preparing embedded pyMC runtime payload"
   printf 'Embedded repeater repo: %s @ %s\n' "${PYMC_EMBED_REPEATER_REPO}" "${PYMC_EMBED_REPEATER_REF}"
   printf 'Embedded core repo: %s @ %s\n' "${PYMC_EMBED_CORE_REPO}" "${PYMC_EMBED_CORE_REF}"
 
@@ -611,9 +608,25 @@ prepare_embed_runtime_sources() {
   sync_repo_checkout "${PYMC_EMBED_REPEATER_REPO}" "${PYMC_EMBED_REPEATER_REF}" "${PYMC_EMBED_REPEATER_DIR}"
   sync_repo_checkout "${PYMC_EMBED_CORE_REPO}" "${PYMC_EMBED_CORE_REF}" "${PYMC_EMBED_CORE_DIR}"
 
-  : > "${PYMC_EMBED_REPEATER_DIR}/.pymc-embedded-checkout"
   printf 'Embedded repeater checkout: %s\n' "${PYMC_EMBED_REPEATER_DIR}"
   printf 'Embedded core checkout: %s\n' "${PYMC_EMBED_CORE_DIR}"
+
+  stage "Staging baked Python runtime"
+  python3 -m venv "${PYMC_EMBED_HOST_VENV}"
+  "${PYMC_EMBED_HOST_VENV}/bin/pip" install --upgrade --no-cache-dir \
+    pip setuptools wheel setuptools_scm packaging vcs-versioning
+
+  rm -rf "${PYMC_EMBED_RUNTIME_SITE_DIR}"
+  mkdir -p "${PYMC_EMBED_RUNTIME_SITE_DIR}"
+
+  "${PYMC_EMBED_HOST_VENV}/bin/pip" install --upgrade --no-cache-dir --no-deps --target "${PYMC_EMBED_RUNTIME_SITE_DIR}" \
+    pip setuptools wheel setuptools_scm packaging vcs-versioning
+  "${PYMC_EMBED_HOST_VENV}/bin/pip" install --upgrade --no-cache-dir --no-deps --no-build-isolation --target "${PYMC_EMBED_RUNTIME_SITE_DIR}" \
+    "${PYMC_EMBED_CORE_DIR}"
+  "${PYMC_EMBED_HOST_VENV}/bin/pip" install --upgrade --no-cache-dir --no-deps --no-build-isolation --target "${PYMC_EMBED_RUNTIME_SITE_DIR}" \
+    "${PYMC_EMBED_REPEATER_DIR}"
+
+  printf 'Embedded runtime site-packages: %s\n' "${PYMC_EMBED_RUNTIME_SITE_DIR}"
 }
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
@@ -642,12 +655,12 @@ PYMC_EMBED_REPEATER_REPO="${PYMC_EMBED_REPEATER_REPO:-https://github.com/rightup
 PYMC_EMBED_REPEATER_REF="${PYMC_EMBED_REPEATER_REF:-dev}"
 PYMC_EMBED_CORE_REPO="${PYMC_EMBED_CORE_REPO:-https://github.com/rightup/pyMC_core.git}"
 PYMC_EMBED_CORE_REF="${PYMC_EMBED_CORE_REF:-dev}"
-PYMC_EMBED_NODE_NAME="${PYMC_EMBED_NODE_NAME:-}"
-PYMC_EMBED_ADMIN_PASSWORD="${PYMC_EMBED_ADMIN_PASSWORD:-}"
 PYMC_EMBED_BUILDROOT_BOARD="${PYMC_EMBED_BUILDROOT_BOARD:-}"
 PYMC_EMBED_RADIO_PRESET="${PYMC_EMBED_RADIO_PRESET:-}"
 PYMC_EMBED_REPEATER_DIR="${PYMC_EMBED_STAGE_DIR}/pyMC_Repeater"
 PYMC_EMBED_CORE_DIR="${PYMC_EMBED_STAGE_DIR}/pyMC_core"
+PYMC_EMBED_HOST_VENV="${PYMC_EMBED_STAGE_DIR}/host-venv"
+PYMC_EMBED_RUNTIME_SITE_DIR="${PYMC_EMBED_STAGE_DIR}/venv-site-packages"
 SDK_DIR="${1:-${SDK_WORK_DIR}}"
 BOARD_CONFIG_PATH="${SDK_DIR}/${BOARD_CONFIG_REL}"
 BOARD_CONFIG_SOURCE_PATH="${BOARD_CONFIG_PATH}"
@@ -773,8 +786,6 @@ stage "Building Luckfox image"
   export RK_JOBS="${RK_JOBS_VALUE}"
   export PYMC_EMBED_INSTALL
   export PYMC_EMBED_STAGE_DIR
-  export PYMC_EMBED_NODE_NAME
-  export PYMC_EMBED_ADMIN_PASSWORD
   export PYMC_EMBED_BUILDROOT_BOARD
   export PYMC_EMBED_RADIO_PRESET
   ./build.sh
