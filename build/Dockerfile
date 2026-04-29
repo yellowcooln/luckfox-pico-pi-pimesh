@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
   openssh-server \
   passwd \
   pkg-config \
+  python3-venv \
   python-is-python3 \
   rsync \
   ssh \
