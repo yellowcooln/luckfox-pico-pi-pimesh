@@ -56,6 +56,7 @@ EOF
 }
 
 SQLITE_SERIALIZE_PATCHED=0
+SQLITE_SERIALIZE_PATCH_MARKER=""
 
 stage() {
   printf '\n==> %s\n' "$1"
@@ -272,8 +273,14 @@ check_buildroot_settings() {
 ensure_sqlite_deserialize_support() {
   sqlite_mk="${SDK_DIR}/sysdrv/source/buildroot/buildroot-2023.02.6/package/sqlite/sqlite.mk"
   [ -f "${sqlite_mk}" ] || fail "Missing Buildroot sqlite package file: ${sqlite_mk}"
+  SQLITE_SERIALIZE_PATCH_MARKER="${SDK_DIR}/.pymc-sqlite-deserialize-v1"
 
   if grep -q 'SQLITE_ENABLE_DESERIALIZE' "${sqlite_mk}"; then
+    if [ ! -f "${SQLITE_SERIALIZE_PATCH_MARKER}" ]; then
+      SQLITE_SERIALIZE_PATCHED=1
+      : > "${SQLITE_SERIALIZE_PATCH_MARKER}"
+      printf 'Check [OK]: marking existing SQLite deserialize patch for rebuild reset\n'
+    fi
     return 0
   fi
 
@@ -294,6 +301,7 @@ PY
 
   grep -q 'SQLITE_ENABLE_DESERIALIZE' "${sqlite_mk}" || fail "Failed to patch ${sqlite_mk} with SQLITE_ENABLE_DESERIALIZE"
   SQLITE_SERIALIZE_PATCHED=1
+  : > "${SQLITE_SERIALIZE_PATCH_MARKER}"
   printf 'Check [OK]: %s enables SQLITE_ENABLE_DESERIALIZE\n' "${sqlite_mk}"
 }
 
