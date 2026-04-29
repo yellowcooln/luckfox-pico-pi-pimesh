@@ -8,6 +8,46 @@ ROOT_PASSWORD_HASH='$1$dXmV8ZLO$eNAQzSYOgRkYMJRdsHwLS1'
 SDK_DIR=$(CDPATH= cd -- "${TARGET_DIR}/../../../../../.." && pwd)
 SDK_BOARD_CONFIG_LINK="${SDK_DIR}/.BoardConfig.mk"
 SDK_OVERLAY_DIR="${SDK_DIR}/project/cfg/BoardConfig_IPC/overlay"
+PYMC_EMBED_STAGE_DIR="${PYMC_EMBED_STAGE_DIR:-}"
+PYMC_EMBED_INSTALL="${PYMC_EMBED_INSTALL:-0}"
+
+install_embedded_runtime_payload() {
+  [ "${PYMC_EMBED_INSTALL}" = "1" ] || return 0
+  [ -n "${PYMC_EMBED_STAGE_DIR}" ] || {
+    printf '%s\n' "Embedded install requested but PYMC_EMBED_STAGE_DIR is empty" >&2
+    exit 1
+  }
+
+  repeater_src="${PYMC_EMBED_STAGE_DIR}/pyMC_Repeater"
+  core_src="${PYMC_EMBED_STAGE_DIR}/pyMC_core"
+  [ -f "${repeater_src}/buildroot-manage.sh" ] || {
+    printf '%s\n' "Missing embedded pyMC_Repeater checkout: ${repeater_src}" >&2
+    exit 1
+  }
+  [ -f "${core_src}/pyproject.toml" ] || {
+    printf '%s\n' "Missing embedded pyMC_core checkout: ${core_src}" >&2
+    exit 1
+  }
+
+  mkdir -p "${TARGET_DIR}/root"
+  rm -rf "${TARGET_DIR}/root/pyMC_Repeater" "${TARGET_DIR}/root/pyMC_core"
+  cp -a "${repeater_src}" "${TARGET_DIR}/root/pyMC_Repeater"
+  cp -a "${core_src}" "${TARGET_DIR}/root/pyMC_core"
+
+  install -m 0755 \
+    "${EXTERNAL_DIR}/board/luckfox/pico-pi/rootfs-overlay/etc/init.d/S79pymc-embedded-install" \
+    "${TARGET_DIR}/etc/init.d/S79pymc-embedded-install"
+
+  mkdir -p "${TARGET_DIR}/etc/default"
+  cat > "${TARGET_DIR}/etc/default/pymc-embedded-install" <<EOF
+PYMC_NODE_NAME="${PYMC_EMBED_NODE_NAME:-}"
+PYMC_ADMIN_PASSWORD="${PYMC_EMBED_ADMIN_PASSWORD:-}"
+PYMC_BUILDROOT_BOARD="${PYMC_EMBED_BUILDROOT_BOARD:-}"
+PYMC_RADIO_PRESET="${PYMC_EMBED_RADIO_PRESET:-}"
+PYMC_CORE_LOCAL_DIR="/root/pyMC_core"
+PYMC_SKIP_BUILDROOT_DEP_INSTALL="1"
+EOF
+}
 
 sync_python_sqlite_stdlib() {
   python_dir=$(find "${TARGET_DIR}/usr/lib" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | head -n 1 || true)
@@ -90,6 +130,8 @@ rm -f "${TARGET_DIR}/usr/local/bin/network-setup.sh"
 rm -f "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
 rm -f "${TARGET_DIR}/etc/init.d/S41dhcpcd"
 rm -f "${TARGET_DIR}/etc/init.d/S50telnet"
+rm -f "${TARGET_DIR}/etc/init.d/S79pymc-embedded-install"
+rm -f "${TARGET_DIR}/etc/default/pymc-embedded-install"
 
 install -m 0755 "${EXTERNAL_DIR}/buildroot-manage.sh" "${APP_DIR}/buildroot-manage.sh"
 install -m 0755 "${EXTERNAL_DIR}/tailscale-manage.sh" "${APP_DIR}/tailscale-manage.sh"
@@ -106,6 +148,7 @@ ln -snf /opt/scripts/wifi-setup.sh "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
 
 sync_python_sqlite_stdlib
 sync_python_sqlite_extension
+install_embedded_runtime_payload
 
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/scripts "${TARGET_DIR}/root/scripts"

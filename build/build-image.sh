@@ -51,6 +51,34 @@ Environment:
                      Default: detected via nproc/getconf, else 1.
   RESET_PYTHON_STATE Set to 1 to clear cached target Python build/output state.
                      Default: 0
+  PYMC_EMBED_INSTALL Set to 1 to bundle embedded pyMC source checkouts and
+                     auto-install them on first boot.
+                     Default: 0
+  PYMC_EMBED_REPEATER_REPO
+                     Repo URL used for the embedded pyMC_Repeater checkout.
+                     Default: https://github.com/rightup/pyMC_Repeater.git
+  PYMC_EMBED_REPEATER_REF
+                     Branch, tag, or commit for the embedded pyMC_Repeater
+                     checkout.
+                     Default: dev
+  PYMC_EMBED_CORE_REPO
+                     Repo URL used for the embedded pyMC_core checkout.
+                     Default: https://github.com/rightup/pyMC_core.git
+  PYMC_EMBED_CORE_REF
+                     Branch, tag, or commit for the embedded pyMC_core
+                     checkout.
+                     Default: dev
+  PYMC_EMBED_NODE_NAME
+                     Optional default repeater node name for embedded install.
+                     Default: derived from device hostname on first boot.
+  PYMC_EMBED_ADMIN_PASSWORD
+                     Optional default admin password for embedded install.
+                     Default: luckfox
+  PYMC_EMBED_BUILDROOT_BOARD
+                     Optional embedded Buildroot radio profile key, e.g.
+                     luckfox-pimesh-v2.
+  PYMC_EMBED_RADIO_PRESET
+                     Optional embedded radio preset title.
   SKIP_BUILD         Set to 1 to stop after check/info validation.
 EOF
 }
@@ -550,6 +578,44 @@ sync_sdk_repo() {
   git -C "${dest_dir}" checkout -f "${repo_ref}"
 }
 
+sync_repo_checkout() {
+  repo_url=$1
+  repo_ref=$2
+  dest_dir=$3
+
+  need_cmd git
+  git config --global --add safe.directory "${dest_dir}" >/dev/null 2>&1 || true
+
+  if [ -d "${dest_dir}/.git" ]; then
+    git -C "${dest_dir}" fetch --tags --force origin
+    git -C "${dest_dir}" reset --hard
+    git -C "${dest_dir}" clean -fd
+  else
+    mkdir -p "$(dirname "${dest_dir}")"
+    git clone "${repo_url}" "${dest_dir}"
+  fi
+
+  git -C "${dest_dir}" checkout -f "${repo_ref}"
+}
+
+prepare_embed_runtime_sources() {
+  [ "${PYMC_EMBED_INSTALL}" = "1" ] || return 0
+
+  stage "Preparing embedded pyMC runtime sources"
+  printf 'Embedded repeater repo: %s @ %s\n' "${PYMC_EMBED_REPEATER_REPO}" "${PYMC_EMBED_REPEATER_REF}"
+  printf 'Embedded core repo: %s @ %s\n' "${PYMC_EMBED_CORE_REPO}" "${PYMC_EMBED_CORE_REF}"
+
+  rm -rf "${PYMC_EMBED_STAGE_DIR}"
+  mkdir -p "${PYMC_EMBED_STAGE_DIR}"
+
+  sync_repo_checkout "${PYMC_EMBED_REPEATER_REPO}" "${PYMC_EMBED_REPEATER_REF}" "${PYMC_EMBED_REPEATER_DIR}"
+  sync_repo_checkout "${PYMC_EMBED_CORE_REPO}" "${PYMC_EMBED_CORE_REF}" "${PYMC_EMBED_CORE_DIR}"
+
+  : > "${PYMC_EMBED_REPEATER_DIR}/.pymc-embedded-checkout"
+  printf 'Embedded repeater checkout: %s\n' "${PYMC_EMBED_REPEATER_DIR}"
+  printf 'Embedded core checkout: %s\n' "${PYMC_EMBED_CORE_DIR}"
+}
+
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   usage
   exit 0
@@ -570,6 +636,18 @@ SDK_REPO="${SDK_REPO:-https://github.com/LuckfoxTECH/luckfox-pico.git}"
 SDK_REF="${SDK_REF:-main}"
 SDK_WORK_DIR="${SDK_WORK_DIR:-${REPO_ROOT}/build/.work/luckfox-pico}"
 BOARD_CONFIG_REL="${BOARD_CONFIG_REL:-project/cfg/BoardConfig_IPC/BoardConfig-EMMC-Buildroot-RV1106_Luckfox_Pico_Pi-IPC.mk}"
+PYMC_EMBED_INSTALL="${PYMC_EMBED_INSTALL:-0}"
+PYMC_EMBED_STAGE_DIR="${PYMC_EMBED_STAGE_DIR:-${REPO_ROOT}/build/.work/pymc-embed}"
+PYMC_EMBED_REPEATER_REPO="${PYMC_EMBED_REPEATER_REPO:-https://github.com/rightup/pyMC_Repeater.git}"
+PYMC_EMBED_REPEATER_REF="${PYMC_EMBED_REPEATER_REF:-dev}"
+PYMC_EMBED_CORE_REPO="${PYMC_EMBED_CORE_REPO:-https://github.com/rightup/pyMC_core.git}"
+PYMC_EMBED_CORE_REF="${PYMC_EMBED_CORE_REF:-dev}"
+PYMC_EMBED_NODE_NAME="${PYMC_EMBED_NODE_NAME:-}"
+PYMC_EMBED_ADMIN_PASSWORD="${PYMC_EMBED_ADMIN_PASSWORD:-}"
+PYMC_EMBED_BUILDROOT_BOARD="${PYMC_EMBED_BUILDROOT_BOARD:-}"
+PYMC_EMBED_RADIO_PRESET="${PYMC_EMBED_RADIO_PRESET:-}"
+PYMC_EMBED_REPEATER_DIR="${PYMC_EMBED_STAGE_DIR}/pyMC_Repeater"
+PYMC_EMBED_CORE_DIR="${PYMC_EMBED_STAGE_DIR}/pyMC_core"
 SDK_DIR="${1:-${SDK_WORK_DIR}}"
 BOARD_CONFIG_PATH="${SDK_DIR}/${BOARD_CONFIG_REL}"
 BOARD_CONFIG_SOURCE_PATH="${BOARD_CONFIG_PATH}"
@@ -685,12 +763,20 @@ if [ "${SKIP_BUILD:-0}" = "1" ]; then
   exit 0
 fi
 
+prepare_embed_runtime_sources
+
 stage "Building Luckfox image"
 (
   cd "${SDK_DIR}"
   export BR2_EXTERNAL="${REPO_ROOT}"
   export PATH="${TOOLCHAIN_BIN}:${PATH}"
   export RK_JOBS="${RK_JOBS_VALUE}"
+  export PYMC_EMBED_INSTALL
+  export PYMC_EMBED_STAGE_DIR
+  export PYMC_EMBED_NODE_NAME
+  export PYMC_EMBED_ADMIN_PASSWORD
+  export PYMC_EMBED_BUILDROOT_BOARD
+  export PYMC_EMBED_RADIO_PRESET
   ./build.sh
   ./build.sh firmware
 )

@@ -96,6 +96,18 @@ Current fields:
 That file is used as the Buildroot-image marker by `pyMC_Repeater`, and the
 `image_version` is exposed through repeater stats/API when present.
 
+There are now two image modes in this repo:
+
+- bootstrap image
+  - ships the thin `/root/scripts/buildroot-manage.sh` helper
+  - clones `pyMC_Repeater` on first install
+- embedded image
+  - bundles `pyMC_Repeater` and `pyMC_core` source checkouts in the image
+  - auto-runs the upstream Buildroot install flow on first boot from the local
+    checkouts
+  - keeps the installed runtime in the normal locations expected by the
+    upstream upgrade/UI flow
+
 ## What The Image Assumes
 
 - Buildroot image with Python `3.10+`
@@ -198,6 +210,18 @@ The baseline expectation is:
 3. run the bootstrap install flow
 4. wait for the API to be ready
 5. do radio-specific testing after the upstream repo install is live
+
+For the embedded-image variant built from `build/build-docker-embed-pico-pi.sh`,
+the image also ships:
+
+- `/root/pyMC_Repeater`
+- `/root/pyMC_core`
+- a first-boot init hook that runs the upstream Buildroot install locally from
+  those bundled checkouts
+
+That path is designed so the box can boot straight into a working repeater
+without requiring a first-boot git clone, while still leaving later update
+behavior in the normal upstream install layout.
 
 ## Scope
 

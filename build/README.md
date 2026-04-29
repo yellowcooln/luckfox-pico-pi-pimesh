@@ -80,6 +80,13 @@ cd build
 ./build-image-docker.sh
 ```
 
+For the embedded-runtime Pico Pi image:
+
+```sh
+cd build
+./build-docker-embed-pico-pi.sh
+```
+
 What this wrapper does:
 
 1. builds a local Ubuntu 22.04 builder image with the Luckfox SDK prerequisite packages
@@ -112,6 +119,18 @@ cd build
 ./build-image-pico-zero-docker.sh
 ```
 
+For the embedded wrapper, these optional environment variables control the
+bundled runtime checkout and first-boot defaults:
+
+- `PYMC_EMBED_REPEATER_REPO`
+- `PYMC_EMBED_REPEATER_REF`
+- `PYMC_EMBED_CORE_REPO`
+- `PYMC_EMBED_CORE_REF`
+- `PYMC_EMBED_NODE_NAME`
+- `PYMC_EMBED_ADMIN_PASSWORD`
+- `PYMC_EMBED_BUILDROOT_BOARD`
+- `PYMC_EMBED_RADIO_PRESET`
+
 Notes:
 
 - the container path is built for Ubuntu 22.04, same as the VM flow
@@ -138,6 +157,8 @@ The full image build currently also patches the reused SDK tree as needed for:
 
 - Python SQLite support under the vendor Buildroot/Python toolchain
 - cached package rebuild resets when that SDK-side SQLite patch is first applied
+- optional embedded `pyMC_Repeater` / `pyMC_core` source staging for the
+  first-boot auto-install image variant
 
 ## Tailscale Baseline
 
@@ -292,3 +313,11 @@ Current shipped image behavior from this repo:
   runtime manager
 - `yq` is shipped in the image so upstream Buildroot config flows can preserve
   comments in `/etc/pymc_repeater/config.yaml`
+
+Embedded-image variant behavior:
+
+- bundles `pyMC_Repeater` and `pyMC_core` git checkouts into `/root`
+- skips the first-boot network clone path
+- runs the upstream Buildroot install locally on first boot
+- installs repeater into the same `/opt/pymc_repeater` and `/etc/pymc_repeater`
+  paths the normal upstream Buildroot flow expects

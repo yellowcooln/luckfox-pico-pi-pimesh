@@ -39,6 +39,16 @@ Built images from this repo are expected to ship with:
   `/etc/pymc_repeater/config.yaml`
 - Python SQLite runtime support present and validated at build time
 
+For the embedded-image variant, built images are also expected to ship with:
+
+- `/root/pyMC_Repeater`
+- `/root/pyMC_core`
+- a first-boot init hook that runs the upstream Buildroot installer locally
+- the same final runtime layout as a normal upstream Buildroot install:
+  - `/opt/pymc_repeater`
+  - `/etc/pymc_repeater`
+  - `/etc/init.d/S80pymc-repeater`
+
 Do not make changes that silently regress any of those image guarantees.
 
 ## Project Structure & Module Organization
@@ -55,6 +65,8 @@ Key paths:
   alternate board wrapper for Pico Zero SDK config selection
 - `build/build-image-pico-zero-docker.sh`
   Docker wrapper for the Pico Zero build path
+- `build/build-docker-embed-pico-pi.sh`
+  Docker wrapper for the embedded-runtime Pico Pi image
 - `build/luckfox_pico_pi_pymc.fragment`
   canonical Buildroot fragment for this repo
 - `board/luckfox/pico-pi/rootfs-overlay/`
@@ -93,6 +105,13 @@ Keep these boundaries clear:
 - API/UI behavior
 - service lifecycle details
 - ongoing runtime feature work
+
+Embedded-image exception:
+
+- this repo may bundle upstream `pyMC_Repeater` and `pyMC_core` source
+  checkouts into the image
+- but it should still install them into the standard upstream runtime paths
+  rather than inventing a parallel runtime layout
 
 Do not bloat the image bootstrap into a second copy of upstream runtime logic.
 If the feature belongs in `pyMC_Repeater`, keep it there and only ship what the
@@ -160,6 +179,8 @@ sh buildroot-manage.sh advert
 - `wait-ready` exists because a running process is not the same thing as API
   readiness on port `8000`.
 - `advert` is a known-good smoke test wrapper around `pymc-cli advert`.
+- embedded images intentionally skip the first-boot git clone by using the
+  bundled `/root/pyMC_Repeater` checkout and local `pyMC_core` source
 
 ## Current Upstream Integration Assumptions
 

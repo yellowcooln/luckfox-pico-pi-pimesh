@@ -151,3 +151,12 @@ Current runtime expectations:
 - Pico Pi radio timing is no longer hardcoded in this image repo; it is now
   applied by the upstream Buildroot radio profile data through:
   - `sx1262.radio_timing_delay: 0.012`
+
+There is also an embedded-image build variant now:
+
+- it bundles `pyMC_Repeater` and `pyMC_core` source checkouts directly into the
+  image
+- it installs from those local sources on first boot using the upstream
+  Buildroot installer
+- it still installs into the normal runtime locations expected by later
+  repeater upgrades

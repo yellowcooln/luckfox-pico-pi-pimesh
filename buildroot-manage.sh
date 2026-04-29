@@ -14,6 +14,7 @@ if [ "$(id -u 2>/dev/null || echo 1)" = "0" ]; then
 fi
 PYMC_REPEATER_HOME="${PYMC_REPEATER_HOME:-${DEFAULT_REPEATER_HOME}}"
 PYMC_REPEATER_DIR="${PYMC_REPEATER_DIR:-${PYMC_REPEATER_HOME}/pyMC_Repeater}"
+PYMC_EMBEDDED_MARKER="${PYMC_REPEATER_DIR}/.pymc-embedded-checkout"
 
 usage() {
   cat <<'EOF'
@@ -85,6 +86,14 @@ ensure_base_tools() {
 }
 
 clone_or_refresh_repo() {
+  force_sync=${1:-0}
+
+  if [ -f "${PYMC_EMBEDDED_MARKER}" ] && [ "${force_sync}" != "1" ]; then
+    stage "Using embedded pyMC_Repeater checkout"
+    info "${PYMC_REPEATER_DIR}"
+    return 0
+  fi
+
   if [ -d "${PYMC_REPEATER_DIR}/.git" ]; then
     stage "Refreshing pyMC_Repeater"
     git -C "${PYMC_REPEATER_DIR}" fetch --tags --force origin
@@ -222,13 +231,13 @@ cmd="${1:-}"
 case "${cmd}" in
   install)
     ensure_base_tools
-    clone_or_refresh_repo
+    clone_or_refresh_repo 0
     shift
     run_repo_manage install "$@"
     ;;
   upgrade)
     ensure_base_tools
-    clone_or_refresh_repo
+    clone_or_refresh_repo 1
     shift
     run_repo_manage upgrade "$@"
     ;;
@@ -258,7 +267,7 @@ case "${cmd}" in
     ;;
   repo-sync)
     ensure_base_tools
-    clone_or_refresh_repo
+    clone_or_refresh_repo 1
     ;;
   ""|help|-h|--help)
     usage
