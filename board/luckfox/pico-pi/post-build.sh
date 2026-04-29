@@ -32,6 +32,30 @@ sync_python_sqlite_stdlib() {
   cp -a "${source_sqlite_dir}" "${python_dir}/sqlite3"
 }
 
+sync_python_sqlite_extension() {
+  python_dir=$(find "${TARGET_DIR}/usr/lib" -maxdepth 1 -mindepth 1 -type d -name 'python3.*' | head -n 1 || true)
+  [ -n "${python_dir}" ] || return 0
+
+  sqlite_ext=$(find "${python_dir}/lib-dynload" -maxdepth 1 -type f -name '_sqlite3*.so' | head -n 1 || true)
+  [ -n "${sqlite_ext}" ] && return 0
+
+  buildroot_output_dir=$(CDPATH= cd -- "${TARGET_DIR}/.." && pwd)
+  python_build_dir=$(find "${buildroot_output_dir}/build" -maxdepth 1 -mindepth 1 -type d -name 'python3-*' | head -n 1 || true)
+  [ -n "${python_build_dir}" ] || {
+    printf '%s\n' "Missing Buildroot Python build directory under ${buildroot_output_dir}/build" >&2
+    exit 1
+  }
+
+  source_sqlite_ext=$(find "${python_build_dir}" -type f -name '_sqlite3*.so' | head -n 1 || true)
+  [ -n "${source_sqlite_ext}" ] || {
+    printf '%s\n' "Missing built Python _sqlite3 extension under ${python_build_dir}" >&2
+    exit 1
+  }
+
+  mkdir -p "${python_dir}/lib-dynload"
+  cp -a "${source_sqlite_ext}" "${python_dir}/lib-dynload/"
+}
+
 restore_vendor_overlays() {
   [ -f "${SDK_BOARD_CONFIG_LINK}" ] || {
     printf '%s\n' "Missing SDK board config link: ${SDK_BOARD_CONFIG_LINK}" >&2
@@ -81,6 +105,7 @@ ln -snf /opt/scripts/network-setup.sh "${TARGET_DIR}/usr/local/bin/network-setup
 ln -snf /opt/scripts/wifi-setup.sh "${TARGET_DIR}/usr/local/bin/wifi-setup.sh"
 
 sync_python_sqlite_stdlib
+sync_python_sqlite_extension
 
 mkdir -p "${TARGET_DIR}/root"
 ln -snf /opt/scripts "${TARGET_DIR}/root/scripts"
