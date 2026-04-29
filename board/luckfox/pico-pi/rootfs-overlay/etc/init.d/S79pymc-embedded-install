@@ -2,6 +2,7 @@
 
 DEFAULTS="/etc/default/pymc-embedded-install"
 REPEATER_DIR="/root/pyMC_Repeater"
+MANAGE_SCRIPT="${REPEATER_DIR}/buildroot-manage.sh"
 SERVICE_SCRIPT="/etc/init.d/S80pymc-repeater"
 DONE_MARKER="/var/lib/pymc_repeater/.embedded-install-complete"
 LOGFILE="/var/log/pymc-embedded-install.log"
@@ -43,14 +44,14 @@ run_install() {
     PYMC_RADIO_PRESET="${PYMC_RADIO_PRESET:-}" \
     PYMC_CORE_LOCAL_DIR="${PYMC_CORE_LOCAL_DIR}" \
     PYMC_SKIP_BUILDROOT_DEP_INSTALL="${PYMC_SKIP_BUILDROOT_DEP_INSTALL}" \
-    bash "${REPEATER_DIR}/buildroot-manage.sh" install >>"${LOGFILE}" 2>&1
+    bash "${MANAGE_SCRIPT}" install >>"${LOGFILE}" 2>&1
 }
 
 case "${1:-}" in
   start)
     already_installed && exit 0
     [ -f "${DONE_MARKER}" ] && exit 0
-    [ -x "${REPEATER_DIR}/buildroot-manage.sh" ] || exit 0
+    [ -f "${MANAGE_SCRIPT}" ] || exit 0
 
     if run_install; then
       : > "${DONE_MARKER}"

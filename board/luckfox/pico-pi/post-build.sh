@@ -33,6 +33,7 @@ install_embedded_runtime_payload() {
   rm -rf "${TARGET_DIR}/root/pyMC_Repeater" "${TARGET_DIR}/root/pyMC_core"
   cp -a "${repeater_src}" "${TARGET_DIR}/root/pyMC_Repeater"
   cp -a "${core_src}" "${TARGET_DIR}/root/pyMC_core"
+  chmod 0755 "${TARGET_DIR}/root/pyMC_Repeater/buildroot-manage.sh"
 
   install -m 0755 \
     "${EXTERNAL_DIR}/board/luckfox/pico-pi/rootfs-overlay/etc/init.d/S79pymc-embedded-install" \
